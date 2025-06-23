@@ -1,7 +1,12 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "sw/device/lib/crypto/drivers/entropy.h"
 #include "sw/device/lib/crypto/impl/integrity.h"
 #include "sw/device/lib/crypto/include/datatypes.h"
 #include "sw/device/lib/crypto/include/hmac.h"
@@ -70,6 +75,7 @@ static status_t run_test_vector(void) {
 OTTF_DEFINE_TEST_CONFIG();
 bool test_main(void) {
   LOG_INFO("Testing cryptolib HMAC/SHA-2 streaming implementations.");
+  CHECK_STATUS_OK(entropy_complex_init());
   status_t test_result = OK_STATUS();
   for (size_t i = 0; i < ARRAYSIZE(kHmacTestVectors); i++) {
     current_test_vector = &kHmacTestVectors[i];

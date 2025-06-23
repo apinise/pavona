@@ -1,3 +1,7 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -10,7 +14,6 @@
 #include "sw/device/lib/base/hardened_memory.h"
 #include "sw/device/lib/base/memory.h"
 #include "sw/device/lib/crypto/drivers/entropy.h"
-#include "sw/device/lib/crypto/drivers/rv_core_ibex.h"
 #include "sw/device/lib/crypto/impl/status.h"
 
 #include "hmac_regs.h"  // Generated.
@@ -127,7 +130,7 @@ static status_t hmac_idle_wait(void) {
     status = abs_mmio_read32(kHmacBaseAddr + HMAC_STATUS_REG_OFFSET);
     attempt_cnt++;
     if (attempt_cnt >= kNumIterTimeout) {
-      return OTCRYPTO_FATAL_ERR;
+      return OTCRYPTO_RECOV_ERR;
     }
   }
 
@@ -159,9 +162,10 @@ static void clear(void) {
   cfg = bitfield_bit32_write(cfg, HMAC_CFG_SHA_EN_BIT, false);
   abs_mmio_write32(kHmacBaseAddr + HMAC_CFG_REG_OFFSET, cfg);
 
-  // Use a random value from EDN to wipe HMAC.
-  abs_mmio_write32(kHmacBaseAddr + HMAC_WIPE_SECRET_REG_OFFSET,
-                   (uint32_t)ibex_rnd32_read());
+  // We could theoretically use a random value from EDN to wipe here for better
+  // SCA protection, but since the HMAC hardware has no SCA defenses anyway a
+  // constant is OK.
+  abs_mmio_write32(kHmacBaseAddr + HMAC_WIPE_SECRET_REG_OFFSET, UINT32_MAX);
 }
 
 /**
@@ -175,14 +179,14 @@ static void clear(void) {
  * The key may be NULL if `key_wordlen` is zero; in that case this function is
  * a no-op.
  *
+ * FI protections inside this function consume randomness; ensure the entropy
+ * complex is up before calling.
+ *
  * @param key The buffer that points to the key.
  * @param key_wordlen The length of the key in words.
  */
-static void key_write(const uint32_t *key, size_t key_wordlen) {
-  for (size_t i = 0; i < key_wordlen; i++) {
-    abs_mmio_write32(
-        kHmacBaseAddr + HMAC_KEY_0_REG_OFFSET + sizeof(uint32_t) * i, key[i]);
-  }
+static inline void key_write(const uint32_t *key, size_t key_wordlen) {
+  hardened_mmio_write(kHmacBaseAddr + HMAC_KEY_0_REG_OFFSET, key, key_wordlen);
 }
 
 /**
@@ -194,14 +198,15 @@ static void key_write(const uint32_t *key, size_t key_wordlen) {
  * reading the digest value, that is, either of stop or process commands is
  * issued.
  *
+ * FI protections inside this function consume randomness; ensure the entropy
+ * complex is up before calling.
+ *
  * @param[out] digest The digest buffer to copy to the result.
  * @param digest_wordlen The length of the digest buffer in words.
  */
-static void digest_read(uint32_t *digest, size_t digest_wordlen) {
-  for (size_t i = 0; i < digest_wordlen; i++) {
-    digest[i] = abs_mmio_read32(kHmacBaseAddr + HMAC_DIGEST_0_REG_OFFSET +
-                                sizeof(uint32_t) * i);
-  }
+static inline void digest_read(uint32_t *digest, size_t digest_wordlen) {
+  hardened_mmio_read(digest, kHmacBaseAddr + HMAC_DIGEST_0_REG_OFFSET,
+                     digest_wordlen);
 }
 
 /**
@@ -272,34 +277,6 @@ static void context_save(hmac_ctx_t *ctx) {
 }
 
 /**
- * Wipes the ctx struct by replacing sensitive data with randomness from the
- * Ibex EDN interface. Non-sensitive variables are zeroized.
- *
- * @param[out] ctx Initialized context object for SHA2/HMAC-SHA2 operations.
- * @return Result of the operation.
- */
-static status_t hmac_context_wipe(hmac_ctx_t *ctx) {
-  // Ensure entropy complex is initialized.
-  HARDENED_TRY(entropy_complex_check());
-
-  // Randomize sensitive data.
-  hardened_memshred(ctx->key, kHmacMaxBlockWords);
-  hardened_memshred(ctx->H, kHmacMaxDigestWords);
-  hardened_memshred((uint32_t *)(ctx->partial_block),
-                    kHmacMaxBlockBytes / sizeof(uint32_t));
-  // Zero the remaining ctx fields.
-  ctx->cfg_reg = 0;
-  ctx->key_wordlen = 0;
-  ctx->msg_block_wordlen = 0;
-  ctx->digest_wordlen = 0;
-  ctx->lower = 0;
-  ctx->upper = 0;
-  ctx->partial_block_bytelen = 0;
-
-  return OTCRYPTO_OK;
-}
-
-/**
  * Write given byte array into the `MSG_FIFO`. This function should only be
  * called when HMAC HWIP is already running and expecting further message bytes.
  *
@@ -307,24 +284,27 @@ static status_t hmac_context_wipe(hmac_ctx_t *ctx) {
  * @param message_len The length of `message` in bytes.
  */
 static void msg_fifo_write(const uint8_t *message, size_t message_len) {
-  // TODO(#23191): Should we handle backpressure here?
   // Begin by writing a one byte at a time until the data is aligned.
   size_t i = 0;
-  for (; misalignment32_of((uintptr_t)(&message[i])) > 0 && i < message_len;
+  for (; misalignment32_of((uintptr_t)(&message[i])) > 0 &&
+         launder32(i) < message_len;
        i++) {
     abs_mmio_write8(kHmacBaseAddr + HMAC_MSG_FIFO_REG_OFFSET, message[i]);
   }
 
   // Write one word at a time as long as there is a full word available.
-  for (; i + sizeof(uint32_t) <= message_len; i += sizeof(uint32_t)) {
+  for (; launder32(i) + sizeof(uint32_t) <= message_len;
+       i += sizeof(uint32_t)) {
     uint32_t next_word = read_32(&message[i]);
     abs_mmio_write32(kHmacBaseAddr + HMAC_MSG_FIFO_REG_OFFSET, next_word);
   }
 
   // For the last few bytes, we need to write one byte at a time again.
-  for (; i < message_len; i++) {
+  for (; launder32(i) < message_len; i++) {
     abs_mmio_write8(kHmacBaseAddr + HMAC_MSG_FIFO_REG_OFFSET, message[i]);
   }
+
+  HARDENED_CHECK_EQ(i, message_len);
 }
 
 /**
@@ -364,6 +344,8 @@ static status_t ensure_idle(void) {
   if (bitfield_bit32_read(status, HMAC_STATUS_HMAC_IDLE_BIT) == 0) {
     return OTCRYPTO_RECOV_ERR;
   }
+  status = abs_mmio_read32(kHmacBaseAddr + HMAC_STATUS_REG_OFFSET);
+  HARDENED_CHECK_EQ(bitfield_bit32_read(status, HMAC_STATUS_HMAC_IDLE_BIT), 1);
   return OTCRYPTO_OK;
 }
 
@@ -392,6 +374,9 @@ static status_t oneshot(const uint32_t cfg, const uint32_t *key,
 
   // Configure the HMAC block.
   abs_mmio_write32(kHmacBaseAddr + HMAC_CFG_REG_OFFSET, cfg);
+
+  // Ensure the entropy complex is up.
+  HARDENED_TRY(entropy_complex_check());
 
   // Write the key (no-op if the key length is 0, e.g. for hashing).
   key_write(key, key_wordlen);
@@ -563,6 +548,9 @@ status_t hmac_update(hmac_ctx_t *ctx, const uint8_t *data, size_t len) {
   size_t len_rem = len % block_bytelen;
   size_t leftover_len = (ctx->partial_block_bytelen + len_rem) % block_bytelen;
 
+  // Ensure the entropy complex is up.
+  HARDENED_TRY(entropy_complex_check());
+
   // Retore context will restore the context and also hit start or continue
   // button as necessary.
   context_restore(ctx);
@@ -591,8 +579,13 @@ status_t hmac_update(hmac_ctx_t *ctx, const uint8_t *data, size_t len) {
   return OTCRYPTO_OK;
 }
 
+static_assert(alignof(hmac_ctx_t) >= alignof(uint32_t),
+              "Context object must be 32-bit aligned for `hardened_memshred`.");
+static_assert(
+    sizeof(hmac_ctx_t) % sizeof(uint32_t) == 0,
+    "Context size must be a multiple of 32 bits for `hardened_memshred`.");
 status_t hmac_final(hmac_ctx_t *ctx, uint32_t *digest) {
-  // Make sure that the entropy complex is configured correctly.
+  // Ensure the entropy complex is up.
   HARDENED_TRY(entropy_complex_check());
 
   // Retore context will restore the context and also hit start or continue
@@ -612,10 +605,8 @@ status_t hmac_final(hmac_ctx_t *ctx, uint32_t *digest) {
   HARDENED_TRY(hmac_idle_wait());
   digest_read(digest, ctx->digest_wordlen);
 
-  // Destroy sensitive values in the ctx object.
-  HARDENED_TRY(hmac_context_wipe(ctx));
-
   // Clean up.
+  hardened_memshred((uint32_t *)ctx, sizeof(hmac_ctx_t) / sizeof(uint32_t));
   clear();
   return OTCRYPTO_OK;
 }

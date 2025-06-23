@@ -198,6 +198,8 @@ cc_library(
     srcs = ["hmac.c"],
     hdrs = ["hmac.h"],
     deps = [
+        ":entropy",
+        ":rv_core_ibex",
         "//hw/top:hmac_c_regs",
         "//hw/top_earlgrey/sw/autogen:top_earlgrey",
         "//sw/device/lib/base:abs_mmio",
