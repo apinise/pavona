@@ -56,6 +56,7 @@ cc_library(
         "//sw/device/lib/dif:uart",
         "//sw/device/lib/runtime:hart",
         "//sw/device/lib/runtime:irq",
+        "//sw/device/lib/runtime:print_uart",
         "//sw/device/lib/testing:alert_handler_testutils",
         "//sw/device/lib/testing:pinmux_testutils",
         "//sw/device/lib/testing:rstmgr_testutils",
