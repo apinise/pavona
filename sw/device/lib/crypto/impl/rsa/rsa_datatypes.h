@@ -1,3 +1,7 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -97,64 +101,91 @@ typedef struct rsa_4096_public_key_t {
 } rsa_4096_public_key_t;
 
 /**
+ * A type that holds a 1024-bit number, for use with RSA-2048.
+ *
+ * This type is half the size of an RSA-2048 integer. It can be used for storing
+ * cofactors, CRT components of the private exponent, CRT conversion factors,
+ * and intermediate values.
+ */
+typedef struct rsa_2048_short_t {
+  uint32_t data[kRsa2048NumWords / 2];
+} rsa_2048_short_t;
+
+/**
+ * A type that holds a 1536-bit number, for use with RSA-3072.
+ *
+ * This type is half the size of an RSA-3072 integer. It can be used for storing
+ * cofactors, CRT components of the private exponent, CRT conversion factors,
+ * and intermediate values.
+ */
+typedef struct rsa_3072_short_t {
+  uint32_t data[kRsa3072NumWords / 2];
+} rsa_3072_short_t;
+
+/**
+ * A type that holds a 2048-bit number, for use with RSA-4096.
+ *
+ * This type is half the size of an RSA-4096 integer. It can be used for storing
+ * cofactors, CRT components of the private exponent, CRT conversion factors,
+ * and intermediate values.
+ */
+typedef struct rsa_4096_short_t {
+  uint32_t data[kRsa4096NumWords / 2];
+} rsa_4096_short_t;
+
+/**
  * A type that holds an RSA-2048 private key.
  *
- * The private key consists of a 2048-bit private exponent d and a public
- * modulus n.
+ * The private key consists of a 2048-bit private exponent split into 1024-bit
+ * CRT components d_p and d_q, a 2048-bit public modulus split into 1024-bit
+ * cofactors p and q, and a 1024-bit CRT conversion factor i_q equal to the
+ * inverse of q mod p.
  */
 typedef struct rsa_2048_private_key_t {
   rsa_2048_int_t d;
   rsa_2048_int_t n;
+  rsa_2048_short_t d_p;
+  rsa_2048_short_t d_q;
+  rsa_2048_short_t p;
+  rsa_2048_short_t q;
+  rsa_2048_short_t i_q;
 } rsa_2048_private_key_t;
 
 /**
  * A type that holds an RSA-3072 private key.
  *
- * The private key consists of a 3072-bit private exponent d and a public
- * modulus n.
+ * The private key consists of a 3072-bit private exponent split into 1536-bit
+ * CRT components d_p and d_q, a 3072-bit public modulus split into 1536-bit
+ * cofactors p and q, and a 1536-bit CRT conversion factor i_q equal to the
+ * inverse of q mod p.
  */
 typedef struct rsa_3072_private_key_t {
   rsa_3072_int_t d;
   rsa_3072_int_t n;
+  rsa_3072_short_t d_p;
+  rsa_3072_short_t d_q;
+  rsa_3072_short_t p;
+  rsa_3072_short_t q;
+  rsa_3072_short_t i_q;
 } rsa_3072_private_key_t;
 
 /**
  * A type that holds an RSA-4096 private key.
  *
- * The private key consists of a 4096-bit private exponent d and a public
- * modulus n.
+ * The private key consists of a 4096-bit private exponent split into 2048-bit
+ * CRT components d_p and d_q, a 4096-bit public modulus split into 2048-bit
+ * cofactors p and q, and a 2048-bit CRT conversion factor i_q equal to the
+ * inverse of q mod p.
  */
 typedef struct rsa_4096_private_key_t {
   rsa_4096_int_t d;
   rsa_4096_int_t n;
+  rsa_4096_short_t d_p;
+  rsa_4096_short_t d_q;
+  rsa_4096_short_t p;
+  rsa_4096_short_t q;
+  rsa_4096_short_t i_q;
 } rsa_4096_private_key_t;
-
-/**
- * A type that holds a cofactor for an RSA-2048 key.
- *
- * This type is half the size of an RSA-2048 integer.
- */
-typedef struct rsa_2048_cofactor_t {
-  uint32_t data[kRsa2048NumWords / 2];
-} rsa_2048_cofactor_t;
-
-/**
- * A type that holds a cofactor for an RSA-3072 key.
- *
- * This type is half the size of an RSA-3072 integer.
- */
-typedef struct rsa_3072_cofactor_t {
-  uint32_t data[kRsa3072NumWords / 2];
-} rsa_3072_cofactor_t;
-
-/**
- * A type that holds a cofactor for an RSA-4096 key.
- *
- * This type is half the size of an RSA-4096 integer.
- */
-typedef struct rsa_4096_cofactor_t {
-  uint32_t data[kRsa4096NumWords / 2];
-} rsa_4096_cofactor_t;
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -1,3 +1,7 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -528,12 +532,11 @@ otcrypto_status_t otcrypto_rsa_keypair_from_cofactor_async_start(
 
   switch (size) {
     case kOtcryptoRsaSize2048: {
-      if (cofactor_share0.len !=
-              sizeof(rsa_2048_cofactor_t) / sizeof(uint32_t) ||
+      if (cofactor_share0.len != sizeof(rsa_2048_short_t) / sizeof(uint32_t) ||
           modulus.len != kRsa2048NumWords) {
         return OTCRYPTO_BAD_ARGS;
       }
-      rsa_2048_cofactor_t *cf = (rsa_2048_cofactor_t *)cofactor_share0.data;
+      rsa_2048_short_t *cf = (rsa_2048_short_t *)cofactor_share0.data;
       // TODO: RSA keys are currently unblinded, so combine the shares.
       for (size_t i = 0; i < cofactor_share1.len; i++) {
         cf->data[i] ^= cofactor_share1.data[i];

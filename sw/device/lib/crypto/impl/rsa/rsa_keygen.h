@@ -1,3 +1,7 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -102,8 +106,7 @@ status_t rsa_keygen_4096_finalize(rsa_4096_public_key_t *public_key,
  * @return Result of the operation (OK or error).
  */
 status_t rsa_keygen_from_cofactor_2048_start(
-    const rsa_2048_public_key_t *public_key,
-    const rsa_2048_cofactor_t *cofactor);
+    const rsa_2048_public_key_t *public_key, const rsa_2048_short_t *cofactor);
 
 /**
  * Waits for an RSA-2048 key-from-cofactor operation to complete.

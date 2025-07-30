@@ -1,3 +1,7 @@
+// Copyright zeroRISC Inc.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
@@ -72,9 +76,9 @@ enum {
    * to change. This is the length that the caller should set in
    * `keyblob_length` and allocate for the `keyblob` buffer in blinded keys.
    */
-  kOtcryptoRsa2048PrivateKeyblobBytes = 512,
-  kOtcryptoRsa3072PrivateKeyblobBytes = 768,
-  kOtcryptoRsa4096PrivateKeyblobBytes = 1024,
+  kOtcryptoRsa2048PrivateKeyblobBytes = 1152,
+  kOtcryptoRsa3072PrivateKeyblobBytes = 1728,
+  kOtcryptoRsa4096PrivateKeyblobBytes = 2304,
 };
 
 /**
