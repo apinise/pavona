@@ -19,6 +19,7 @@ load(
     "fpga_params",
     "opentitan_binary",
     "opentitan_test",
+    "qemu_params",
     "silicon_params",
     "verilator_params",
 )
@@ -107,6 +108,12 @@ opentitan_test(
     name = "aes_kwp_sideload_functest",
     srcs = ["aes_kwp_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "long",
     ),
@@ -124,6 +131,12 @@ opentitan_test(
     name = "aes_sideload_functest",
     srcs = ["aes_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "long",
     ),
@@ -266,6 +279,12 @@ opentitan_test(
     name = "ecdh_p256_sideload_functest",
     srcs = ["ecdh_p256_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "eternal",
         # This test can take > 60 minutes, so mark it manual as it shouldn't
@@ -288,6 +307,12 @@ opentitan_test(
     name = "ecdh_p384_sideload_functest",
     srcs = ["ecdh_p384_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "eternal",
         # This test can take > 60 minutes, so mark it manual as it shouldn't
@@ -369,6 +394,12 @@ opentitan_test(
     name = "ecdsa_p256_sideload_functest",
     srcs = ["ecdsa_p256_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "eternal",
         # This test can take > 60 minutes, so mark it manual as it shouldn't
@@ -392,6 +423,12 @@ opentitan_test(
     name = "ecdsa_p384_sideload_functest",
     srcs = ["ecdsa_p384_sideload_functest.c"],
     exec_env = CRYPTOTEST_EXEC_ENVS,
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "eternal",
         # This test can take > 60 minutes, so mark it manual as it shouldn't
@@ -565,6 +602,12 @@ opentitan_test(
     exec_env = dicts.add(
         EARLGREY_TEST_ENVS,
     ),
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
+    ),
     verilator = verilator_params(
         timeout = "long",
     ),
@@ -587,6 +630,12 @@ opentitan_test(
     srcs = ["kmac_sideload_functest.c"],
     exec_env = dicts.add(
         EARLGREY_TEST_ENVS,
+    ),
+    qemu = qemu_params(
+        globals = {
+            # Test uses rstmgr, keep running on fatal resets:
+            "ot-rstmgr.fatal_reset": 0,
+        },
     ),
     verilator = verilator_params(
         timeout = "long",
