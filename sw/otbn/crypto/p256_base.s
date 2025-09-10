@@ -1242,7 +1242,7 @@ proj_double:
  *
  *
  * Each share k0/k1 is 320 bits, even though it represents a 256-bit value.
- * This allows for blinded scalars as a side-channel protection measure.
+ * This is a side-channel protection measure.
  *
  * @param[in]  x21: dptr_x, pointer to affine x-coordinate in dmem
  * @param[in]  x22: dptr_y, pointer to affine y-coordinate in dmem
@@ -1287,7 +1287,7 @@ scalar_mult_int:
 
   /* Init 2P, this will be used for the addition part in the double-and-add
      loop when the bit at the current index is 1 for both shares of the scalar.
-     2P = (w4, w5, w6) <= (w8, w8, w10) <= 2*(w8, w9, w10) = 2*P */
+     2P = (w4, w5, w6) <= (w8, w9, w10) <= 2*(w8, w9, w10) = 2*P */
   jal       x1, proj_double
   bn.mov    w4, w8
   bn.mov    w5, w9
