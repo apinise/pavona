@@ -120,12 +120,12 @@ p256_isoncurve_proj:
   jal       x1, mul_modp
 
   /* load projective z-coordinate of curve point from dmem
-     w26 <= dmem[z] */
+     w24 <= dmem[z] */
   la        x3, z
   li        x2, 24
   bn.lid    x2, 0(x3)
 
-  /* w19 <= w26*w19 mod p = zy^2 mod p */
+  /* w19 <= w24*w19 mod p = zy^2 mod p */
   bn.mov    w25, w19
   jal       x1, mul_modp
 
