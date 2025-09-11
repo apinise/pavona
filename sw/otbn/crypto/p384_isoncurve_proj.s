@@ -30,7 +30,7 @@
  * @param[in]  x30:         dptr_sp, pointer to 704 bytes of scratchpad memory in dmem
  *
  * Scratchpad memory layout:
- * The routine expects at least 194 bytes of scratchpad memory at dmem
+ * The routine expects at least 192 bytes of scratchpad memory at dmem
  * location 'scratchpad' (sp). Internally the scratchpad is used as follows:
  * dptr_sp     .. dptr_sp+63:   z-coordinate of input point, projective
  * dptr_sp+64  .. dptr_sp+127:  dptr_rhs, pointer to dmem location where right
@@ -120,7 +120,7 @@ p384_isoncurve_proj:
   bn.lid    x2++, 32(x3)
 
   /* load projective z-coordinate of curve point from dmem
-     [w1, w0] <= dmem[dptr_z] = dmem[19] */
+     [w1, w0] <= dmem[dptr_z] = dmem[x30] */
   li        x2, 0
   bn.lid    x2++, 0(x30)
   bn.lid    x2++, 32(x30)
@@ -144,13 +144,13 @@ p384_isoncurve_proj:
   bn.xor    w31, w31, w31
 
   /* load projective x-coordinate of curve point from dmem
-     [w1, w0] <= dmem[dptr_x] = dmem[20] */
+     [w1, w0] <= dmem[dptr_x] = dmem[x20] */
   li        x2, 0
   bn.lid    x2++, 0(x20)
   bn.lid    x2++, 32(x20)
 
   /* load projective y-coordinate of curve point from dmem
-     [w3, w2] <= dmem[dptr_y] = dmem[24] */
+     [w3, w2] <= dmem[dptr_y] = dmem[x21] */
   bn.lid    x2++, 0(x21)
   bn.lid    x2, 32(x21)
 
@@ -162,7 +162,7 @@ p384_isoncurve_proj:
   jal       x1, p384_mulmod_p
 
   /* load projective z-coordinate of curve point from dmem
-     [w11, w10] <= dmem[dptr_z] = dmem[19] */
+     [w11, w10] <= dmem[dptr_z] = dmem[x30] */
   li        x2, 10
   bn.lid    x2++, 0(x30)
   bn.lid    x2++, 32(x30)
@@ -176,7 +176,7 @@ p384_isoncurve_proj:
   bn.sid    x2++, 32(x23)
 
   /* load projective z-coordinate of curve point from dmem
-     [w11, w10] <= dmem[dptr_z] = dmem[19] */
+     [w11, w10] <= dmem[dptr_z] = dmem[x30] */
   li        x2, 10
   bn.lid    x2++, 0(x30)
   bn.lid    x2++, 32(x30)
@@ -187,7 +187,7 @@ p384_isoncurve_proj:
   jal       x1, p384_mulmod_p
 
   /* load projective z-coordinate of curve point from dmem
-     [w11, w10] <= dmem[dptr_z] = dmem[19] */
+     [w11, w10] <= dmem[dptr_z] = dmem[x30] */
   li        x2, 10
   bn.lid    x2++, 0(x30)
   bn.lid    x2++, 32(x30)
