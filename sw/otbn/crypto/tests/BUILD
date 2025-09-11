@@ -301,6 +301,7 @@ otbn_sim_test(
     exp = "p256_scalar_remask_test.exp",
     deps = [
         "//sw/otbn/crypto:p256_base",
+        "//sw/otbn/crypto:p256_isoncurve",
     ],
 )
 
