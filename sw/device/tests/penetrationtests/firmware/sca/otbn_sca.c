@@ -622,7 +622,7 @@ status_t trigger_otbn_sca_combi_operations(
       OTBN_ADDR_T_INIT(otbn_insn_combi_ops, result_8);
 
   // Load app and write received big_num into DMEM.
-  otbn_load_app(kOtbnAppInsnCombiOps);
+  TRY(otbn_load_app(kOtbnAppInsnCombiOps));
   TRY(dif_otbn_dmem_write(&otbn, kOtbnVarInsnCombiOpsValue1, &value1,
                           sizeof(value1)));
   TRY(dif_otbn_dmem_write(&otbn, kOtbnVarInsnCombiOpsValue2, &value2,
@@ -630,8 +630,8 @@ status_t trigger_otbn_sca_combi_operations(
 
   if (trigger & 0x1)
     pentest_set_trigger_high();
-  otbn_execute();
-  otbn_busy_wait_for_done();
+  TRY(otbn_execute());
+  TRY(otbn_busy_wait_for_done());
   if (trigger & 0x1)
     pentest_set_trigger_low();
 
@@ -654,7 +654,7 @@ status_t trigger_otbn_sca_combi_operations(
 
   if (trigger & 0x2)
     pentest_set_trigger_high();
-  otbn_dmem_sec_wipe();
+  TRY(otbn_dmem_sec_wipe());
   if (trigger & 0x2)
     pentest_set_trigger_low();
 
