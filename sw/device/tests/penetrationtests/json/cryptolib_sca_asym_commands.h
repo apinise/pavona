@@ -13,6 +13,7 @@ extern "C" {
 
 #define RSA_CMD_MAX_MESSAGE_BYTES 512
 #define RSA_CMD_MAX_N_BYTES 512
+#define RSA_CMD_MAX_COFACTOR_BYTES 256
 #define RSA_CMD_MAX_SIGNATURE_BYTES 512
 
 #define P256_CMD_BYTES 32
@@ -59,9 +60,13 @@ RUST_ONLY(UJSON_SERDE_ENUM(CryptoLibScaAsymSubcommand, cryptolib_sca_asym_subcom
     field(data, uint8_t, RSA_CMD_MAX_MESSAGE_BYTES) \
     field(data_len, size_t) \
     field(mode, size_t) \
+    field(p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(e, uint32_t) \
     field(n, uint8_t, RSA_CMD_MAX_N_BYTES) \
-    field(d, uint8_t, RSA_CMD_MAX_N_BYTES) \
+    field(d_p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(d_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(i_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n_len, size_t) \
     field(hashing, size_t) \
     field(padding, size_t) \
@@ -70,8 +75,12 @@ RUST_ONLY(UJSON_SERDE_ENUM(CryptoLibScaAsymSubcommand, cryptolib_sca_asym_subcom
 UJSON_SERDE_STRUCT(CryptoLibScaAsymRsaDecIn, cryptolib_sca_asym_rsa_dec_in_t, CRYPTOLIBSCAASYM_RSA_DEC_IN);
 
 #define CRYPTOLIBSCAASYM_RSA_DEC_OUT(field, string) \
+    field(p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n, uint8_t, RSA_CMD_MAX_N_BYTES) \
-    field(d, uint8_t, RSA_CMD_MAX_N_BYTES) \
+    field(d_p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(d_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(i_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n_len, size_t) \
     field(data, uint8_t, RSA_CMD_MAX_MESSAGE_BYTES) \
     field(data_len, size_t) \
@@ -82,9 +91,13 @@ UJSON_SERDE_STRUCT(CryptoLibScaAsymRsaDecOut, cryptolib_sca_asym_rsa_dec_out_t, 
 #define CRYPTOLIBSCAASYM_RSA_SIGN_IN(field, string) \
     field(data, uint8_t, RSA_CMD_MAX_MESSAGE_BYTES) \
     field(data_len, size_t) \
+    field(p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(e, uint32_t) \
     field(n, uint8_t, RSA_CMD_MAX_N_BYTES) \
-    field(d, uint8_t, RSA_CMD_MAX_N_BYTES) \
+    field(d_p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(d_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(i_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n_len, size_t) \
     field(hashing, size_t) \
     field(padding, size_t) \
@@ -94,8 +107,12 @@ UJSON_SERDE_STRUCT(CryptoLibScaAsymRsaDecOut, cryptolib_sca_asym_rsa_dec_out_t, 
 UJSON_SERDE_STRUCT(CryptoLibScaAsymRsaSignIn, cryptolib_sca_asym_rsa_sign_in_t, CRYPTOLIBSCAASYM_RSA_SIGN_IN);
 
 #define CRYPTOLIBSCAASYM_RSA_SIGN_OUT(field, string) \
+    field(p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n, uint8_t, RSA_CMD_MAX_N_BYTES) \
-    field(d, uint8_t, RSA_CMD_MAX_N_BYTES) \
+    field(d_p, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(d_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
+    field(i_q, uint8_t, RSA_CMD_MAX_COFACTOR_BYTES) \
     field(n_len, size_t) \
     field(sig, uint8_t, RSA_CMD_MAX_SIGNATURE_BYTES) \
     field(sig_len, size_t) \

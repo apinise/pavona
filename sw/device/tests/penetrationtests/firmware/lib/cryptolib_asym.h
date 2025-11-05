@@ -41,13 +41,29 @@ enum {
    */
   kPentestRsaMaxMsgWords = RSA_CMD_MAX_MESSAGE_BYTES / sizeof(uint32_t),
   /**
+   * Number of max p words in RSA.
+   */
+  kPentestRsaMaxPWords = RSA_CMD_MAX_COFACTOR_BYTES / sizeof(uint32_t),
+  /**
+   * Number of max q words in RSA.
+   */
+  kPentestRsaMaxQWords = RSA_CMD_MAX_COFACTOR_BYTES / sizeof(uint32_t),
+  /**
    * Number of max N words in RSA.
    */
   kPentestRsaMaxNWords = RSA_CMD_MAX_N_BYTES / sizeof(uint32_t),
   /**
-   * Number of max D words in RSA.
+   * Number of max d_p words in RSA.
    */
-  kPentestRsaMaxDWords = RSA_CMD_MAX_N_BYTES / sizeof(uint32_t),
+  kPentestRsaMaxDpWords = RSA_CMD_MAX_COFACTOR_BYTES / sizeof(uint32_t),
+  /**
+   * Number of max d_q words in RSA.
+   */
+  kPentestRsaMaxDqWords = RSA_CMD_MAX_COFACTOR_BYTES / sizeof(uint32_t),
+  /**
+   * Number of max i_q words in RSA.
+   */
+  kPentestRsaMaxIqWords = RSA_CMD_MAX_COFACTOR_BYTES / sizeof(uint32_t),
   /**
    * RSA padding modes.
    */

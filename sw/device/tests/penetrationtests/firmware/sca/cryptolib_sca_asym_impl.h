@@ -30,10 +30,13 @@
  */
 status_t cryptolib_sca_rsa_dec_impl(
     uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len, size_t mode,
-    uint32_t e, uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d[RSA_CMD_MAX_N_BYTES],
-    size_t *n_len, uint8_t data_out[RSA_CMD_MAX_MESSAGE_BYTES],
-    size_t *data_out_len, size_t hashing, size_t padding, size_t cfg_in,
-    size_t *cfg_out, size_t trigger);
+    uint8_t p[RSA_CMD_MAX_N_BYTES / 2], uint8_t q[RSA_CMD_MAX_N_BYTES / 2],
+    uint32_t e, uint8_t n[RSA_CMD_MAX_N_BYTES],
+    uint8_t d_p[RSA_CMD_MAX_N_BYTES / 2], uint8_t d_q[RSA_CMD_MAX_N_BYTES / 2],
+    uint8_t i_q[RSA_CMD_MAX_N_BYTES / 2], size_t *n_len,
+    uint8_t data_out[RSA_CMD_MAX_MESSAGE_BYTES], size_t *data_out_len,
+    size_t hashing, size_t padding, size_t cfg_in, size_t *cfg_out,
+    size_t trigger);
 
 /**
  * Wrapper to RSA decryption implementation.
@@ -54,11 +57,13 @@ status_t cryptolib_sca_rsa_dec_impl(
  * @return OK or error.
  */
 status_t cryptolib_sca_rsa_sign_impl(
-    uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len, uint32_t e,
-    uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d[RSA_CMD_MAX_N_BYTES],
-    size_t *n_len, uint8_t sig[RSA_CMD_MAX_SIGNATURE_BYTES], size_t *sig_len,
-    size_t hashing, size_t padding, size_t cfg_in, size_t *cfg_out,
-    size_t trigger);
+    uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len,
+    uint8_t p[RSA_CMD_MAX_N_BYTES / 2], uint8_t q[RSA_CMD_MAX_N_BYTES / 2],
+    uint32_t e, uint8_t n[RSA_CMD_MAX_N_BYTES],
+    uint8_t d_p[RSA_CMD_MAX_N_BYTES / 2], uint8_t d_q[RSA_CMD_MAX_N_BYTES / 2],
+    uint8_t i_q[RSA_CMD_MAX_N_BYTES / 2], size_t *n_len,
+    uint8_t sig[RSA_CMD_MAX_SIGNATURE_BYTES], size_t *sig_len, size_t hashing,
+    size_t padding, size_t cfg_in, size_t *cfg_out, size_t trigger);
 
 /**
  * Wrapper to ECDH in P256 cryptolib implementation.

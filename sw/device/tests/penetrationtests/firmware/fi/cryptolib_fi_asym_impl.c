@@ -154,27 +154,63 @@ status_t cryptolib_fi_rsa_enc_impl(cryptolib_fi_asym_rsa_enc_in_t uj_input,
     uj_output->status = (size_t)status_out.value;
     memset(uj_output->data, 0, RSA_CMD_MAX_MESSAGE_BYTES);
     memcpy(uj_output->data, ciphertext_buf, uj_output->data_len);
-    // Return received n and d back to host.
+    // Return received parameters back to host.
     uj_output->n_len = uj_input.n_len;
+    memset(uj_output->p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->p, uj_input.p, uj_input.n_len / 2);
+    memset(uj_output->q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->q, uj_input.q, uj_input.n_len / 2);
     memset(uj_output->n, 0, RSA_CMD_MAX_N_BYTES);
     memcpy(uj_output->n, uj_input.n, uj_input.n_len);
-    memset(uj_output->d, 0, RSA_CMD_MAX_N_BYTES);
-    memcpy(uj_output->d, uj_input.d, uj_input.n_len);
+    memset(uj_output->d_p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->d_p, uj_input.d_p, uj_input.n_len / 2);
+    memset(uj_output->d_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->d_q, uj_input.d_q, uj_input.n_len / 2);
+    memset(uj_output->i_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->i_q, uj_input.i_q, uj_input.n_len / 2);
   } else {
     // Decryption.
+    // Store cofactors for CRT modular exponentiation.
+    uint32_t p_buf[kPentestRsaMaxPWords];
+    memset(p_buf, 0, sizeof(p_buf));
+    memcpy(p_buf, uj_input.p, num_bytes / 2);
 
-    // Create two shares for the private exponent (second share is all-zero).
-    uint32_t d_buf[kPentestRsaMaxDWords];
-    memset(d_buf, 0, sizeof(d_buf));
-    memcpy(d_buf, uj_input.d, num_bytes);
+    uint32_t q_buf[kPentestRsaMaxQWords];
+    memset(q_buf, 0, sizeof(q_buf));
+    memcpy(q_buf, uj_input.q, num_bytes / 2);
 
-    otcrypto_const_word32_buf_t d_share0 = {
-        .data = d_buf,
+    otcrypto_const_word32_buf_t cofactor0 = {
+        .data = p_buf,
         .len = num_words,
     };
-    uint32_t share1[kPentestRsaMaxDWords] = {0};
-    otcrypto_const_word32_buf_t d_share1 = {
-        .data = share1,
+    otcrypto_const_word32_buf_t cofactor1 = {
+        .data = q_buf,
+        .len = num_words,
+    };
+
+    // Store CRT components for the private exponent and CRT coefficient.
+    uint32_t d_p_buf[kPentestRsaMaxDpWords];
+    memset(d_p_buf, 0, sizeof(d_p_buf));
+    memcpy(d_p_buf, uj_input.d_p, num_bytes / 2);
+
+    uint32_t d_q_buf[kPentestRsaMaxDqWords];
+    memset(d_q_buf, 0, sizeof(d_q_buf));
+    memcpy(d_q_buf, uj_input.d_q, num_bytes / 2);
+
+    uint32_t i_q_buf[kPentestRsaMaxIqWords];
+    memset(i_q_buf, 0, sizeof(i_q_buf));
+    memcpy(i_q_buf, uj_input.i_q, num_bytes / 2);
+
+    otcrypto_const_word32_buf_t d_component0 = {
+        .data = d_p_buf,
+        .len = num_words,
+    };
+    otcrypto_const_word32_buf_t d_component1 = {
+        .data = d_q_buf,
+        .len = num_words,
+    };
+    otcrypto_const_word32_buf_t crt_coeff = {
+        .data = i_q_buf,
         .len = num_words,
     };
 
@@ -199,7 +235,8 @@ status_t cryptolib_fi_rsa_enc_impl(cryptolib_fi_asym_rsa_enc_in_t uj_input,
       pentest_set_trigger_high();
     }
     TRY(otcrypto_rsa_private_key_from_exponents(
-        rsa_size, modulus, uj_input.e, d_share0, d_share1, &private_key));
+        rsa_size, modulus, cofactor0, cofactor1, uj_input.e, d_component0,
+        d_component1, crt_coeff, &private_key));
     if (uj_input.trigger & kPentestTrigger1) {
       pentest_set_trigger_low();
     }
@@ -237,12 +274,20 @@ status_t cryptolib_fi_rsa_enc_impl(cryptolib_fi_asym_rsa_enc_in_t uj_input,
     uj_output->cfg = 0;
     memset(uj_output->data, 0, RSA_CMD_MAX_MESSAGE_BYTES);
     memcpy(uj_output->data, plaintext_buf, msg_len);
-    // Return received n and d back to host.
+    // Return received parameters back to host.
     uj_output->n_len = uj_input.n_len;
+    memset(uj_output->p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->p, uj_input.p, uj_input.n_len / 2);
+    memset(uj_output->q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->q, uj_input.q, uj_input.n_len / 2);
     memset(uj_output->n, 0, RSA_CMD_MAX_N_BYTES);
     memcpy(uj_output->n, uj_input.n, uj_input.n_len);
-    memset(uj_output->d, 0, RSA_CMD_MAX_N_BYTES);
-    memcpy(uj_output->d, uj_input.d, uj_input.n_len);
+    memset(uj_output->d_p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->d_p, uj_input.d_p, uj_input.n_len / 2);
+    memset(uj_output->d_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->d_q, uj_input.d_q, uj_input.n_len / 2);
+    memset(uj_output->i_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+    memcpy(uj_output->i_q, uj_input.i_q, uj_input.n_len / 2);
   }
 
   return OK_STATUS();
@@ -314,18 +359,47 @@ status_t cryptolib_fi_rsa_sign_impl(
       LOG_ERROR("Unsupported RSA hash mode: %d", uj_input.hashing);
       return INVALID_ARGUMENT();
   }
-  // Create two shares for the private exponent (second share is all-zero).
-  uint32_t d_buf[kPentestRsaMaxDWords];
-  memset(d_buf, 0, sizeof(d_buf));
-  memcpy(d_buf, uj_input.d, uj_input.n_len);
+  // Store cofactors for CRT modular exponentiation.
+  uint32_t p_buf[kPentestRsaMaxPWords];
+  memset(p_buf, 0, sizeof(p_buf));
+  memcpy(p_buf, uj_input.p, uj_input.n_len / 2);
 
-  otcrypto_const_word32_buf_t d_share0 = {
-      .data = d_buf,
+  uint32_t q_buf[kPentestRsaMaxQWords];
+  memset(q_buf, 0, sizeof(q_buf));
+  memcpy(q_buf, uj_input.q, uj_input.n_len / 2);
+
+  otcrypto_const_word32_buf_t cofactor0 = {
+      .data = p_buf,
       .len = num_words,
   };
-  uint32_t share1[kPentestRsaMaxDWords] = {0};
-  otcrypto_const_word32_buf_t d_share1 = {
-      .data = share1,
+  otcrypto_const_word32_buf_t cofactor1 = {
+      .data = q_buf,
+      .len = num_words,
+  };
+
+  // Store CRT components for the private exponent and CRT coefficient.
+  uint32_t d_p_buf[kPentestRsaMaxDpWords];
+  memset(d_p_buf, 0, sizeof(d_p_buf));
+  memcpy(d_p_buf, uj_input.d_p, uj_input.n_len / 2);
+
+  uint32_t d_q_buf[kPentestRsaMaxDqWords];
+  memset(d_q_buf, 0, sizeof(d_q_buf));
+  memcpy(d_q_buf, uj_input.d_q, uj_input.n_len / 2);
+
+  uint32_t i_q_buf[kPentestRsaMaxIqWords];
+  memset(i_q_buf, 0, sizeof(i_q_buf));
+  memcpy(i_q_buf, uj_input.i_q, uj_input.n_len / 2);
+
+  otcrypto_const_word32_buf_t d_component0 = {
+      .data = d_p_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t d_component1 = {
+      .data = d_q_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t crt_coeff = {
+      .data = i_q_buf,
       .len = num_words,
   };
 
@@ -360,7 +434,8 @@ status_t cryptolib_fi_rsa_sign_impl(
     pentest_set_trigger_high();
   }
   TRY(otcrypto_rsa_private_key_from_exponents(
-      rsa_size, modulus, uj_input.e, d_share0, d_share1, &private_key));
+      rsa_size, modulus, cofactor0, cofactor1, uj_input.e, d_component0,
+      d_component1, crt_coeff, &private_key));
   if (uj_input.trigger & kPentestTrigger1) {
     pentest_set_trigger_low();
   }
@@ -417,12 +492,20 @@ status_t cryptolib_fi_rsa_sign_impl(
   uj_output->cfg = 0;
   memset(uj_output->sig, 0, RSA_CMD_MAX_SIGNATURE_BYTES);
   memcpy(uj_output->sig, sig, uj_output->sig_len);
-  // Return received n and d back to host.
+  // Return received parameters back to host.
   uj_output->n_len = uj_input.n_len;
+  memset(uj_output->p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+  memcpy(uj_output->p, uj_input.p, uj_input.n_len / 2);
+  memset(uj_output->q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+  memcpy(uj_output->q, uj_input.q, uj_input.n_len / 2);
   memset(uj_output->n, 0, RSA_CMD_MAX_N_BYTES);
   memcpy(uj_output->n, uj_input.n, uj_input.n_len);
-  memset(uj_output->d, 0, RSA_CMD_MAX_N_BYTES);
-  memcpy(uj_output->d, uj_input.d, uj_input.n_len);
+  memset(uj_output->d_p, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+  memcpy(uj_output->d_p, uj_input.d_p, uj_input.n_len / 2);
+  memset(uj_output->d_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+  memcpy(uj_output->d_q, uj_input.d_q, uj_input.n_len / 2);
+  memset(uj_output->i_q, 0, RSA_CMD_MAX_COFACTOR_BYTES);
+  memcpy(uj_output->i_q, uj_input.i_q, uj_input.n_len / 2);
 
   return OK_STATUS();
 }

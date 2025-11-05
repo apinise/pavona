@@ -32,10 +32,14 @@ static const size_t kTestLabelLen = sizeof(kTestLabel) - 1;
 
 status_t cryptolib_sca_rsa_dec_impl(
     uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len, size_t mode,
-    uint32_t e, uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d[RSA_CMD_MAX_N_BYTES],
-    size_t *n_len, uint8_t data_out[RSA_CMD_MAX_MESSAGE_BYTES],
-    size_t *data_out_len, size_t hashing, size_t padding, size_t cfg_in,
-    size_t *cfg_out, size_t trigger) {
+    uint8_t p[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t q[RSA_CMD_MAX_COFACTOR_BYTES], uint32_t e,
+    uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d_p[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t d_q[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t i_q[RSA_CMD_MAX_COFACTOR_BYTES], size_t *n_len,
+    uint8_t data_out[RSA_CMD_MAX_MESSAGE_BYTES], size_t *data_out_len,
+    size_t hashing, size_t padding, size_t cfg_in, size_t *cfg_out,
+    size_t trigger) {
   size_t private_key_bytes;
   size_t private_key_blob_bytes;
   size_t num_words;
@@ -98,18 +102,47 @@ status_t cryptolib_sca_rsa_dec_impl(
     return INVALID_ARGUMENT();
   }
 
-  // Create two shares for the private exponent (second share is all-zero).
-  uint32_t d_buf[kPentestRsaMaxDWords];
-  memset(d_buf, 0, sizeof(d_buf));
-  memcpy(d_buf, d, num_bytes);
+  // Store cofactors for CRT modular exponentiation.
+  uint32_t p_buf[kPentestRsaMaxPWords];
+  memset(p_buf, 0, sizeof(p_buf));
+  memcpy(p_buf, p, num_bytes / 2);
 
-  otcrypto_const_word32_buf_t d_share0 = {
-      .data = d_buf,
+  uint32_t q_buf[kPentestRsaMaxQWords];
+  memset(q_buf, 0, sizeof(q_buf));
+  memcpy(q_buf, q, num_bytes / 2);
+
+  otcrypto_const_word32_buf_t cofactor0 = {
+      .data = p_buf,
       .len = num_words,
   };
-  uint32_t share1[kPentestRsaMaxDWords] = {0};
-  otcrypto_const_word32_buf_t d_share1 = {
-      .data = share1,
+  otcrypto_const_word32_buf_t cofactor1 = {
+      .data = q_buf,
+      .len = num_words,
+  };
+
+  // Store CRT components for the private exponent and CRT coefficient.
+  uint32_t d_p_buf[kPentestRsaMaxDpWords];
+  memset(d_p_buf, 0, sizeof(d_p_buf));
+  memcpy(d_p_buf, d_p, num_bytes / 2);
+
+  uint32_t d_q_buf[kPentestRsaMaxDqWords];
+  memset(d_q_buf, 0, sizeof(d_q_buf));
+  memcpy(d_q_buf, d_q, num_bytes / 2);
+
+  uint32_t i_q_buf[kPentestRsaMaxIqWords];
+  memset(i_q_buf, 0, sizeof(i_q_buf));
+  memcpy(i_q_buf, i_q, num_bytes / 2);
+
+  otcrypto_const_word32_buf_t d_component0 = {
+      .data = d_p_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t d_component1 = {
+      .data = d_q_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t crt_coeff = {
+      .data = i_q_buf,
       .len = num_words,
   };
 
@@ -131,7 +164,7 @@ status_t cryptolib_sca_rsa_dec_impl(
 
   // Create the modulus N buffer.
   uint32_t n_buf[kPentestRsaMaxNWords];
-  memset(n_buf, 0, sizeof(d_buf));
+  memset(n_buf, 0, sizeof(n_buf));
   memcpy(n_buf, n, num_bytes);
 
   otcrypto_const_word32_buf_t modulus = {
@@ -143,8 +176,9 @@ status_t cryptolib_sca_rsa_dec_impl(
   if (trigger & kPentestTrigger1) {
     pentest_set_trigger_high();
   }
-  TRY(otcrypto_rsa_private_key_from_exponents(rsa_size, modulus, e, d_share0,
-                                              d_share1, &private_key));
+  TRY(otcrypto_rsa_private_key_from_exponents(
+      rsa_size, modulus, cofactor0, cofactor1, e, d_component0, d_component1,
+      crt_coeff, &private_key));
   if (trigger & kPentestTrigger1) {
     pentest_set_trigger_low();
   }
@@ -270,32 +304,39 @@ status_t cryptolib_sca_p256_ecdh_impl(
 }
 
 status_t cryptolib_sca_rsa_sign_impl(
-    uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len, uint32_t e,
-    uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d[RSA_CMD_MAX_N_BYTES],
-    size_t *n_len, uint8_t sig[RSA_CMD_MAX_SIGNATURE_BYTES], size_t *sig_len,
-    size_t hashing, size_t padding, size_t cfg_in, size_t *cfg_out,
-    size_t trigger) {
+    uint8_t data[RSA_CMD_MAX_MESSAGE_BYTES], size_t data_len,
+    uint8_t p[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t q[RSA_CMD_MAX_COFACTOR_BYTES], uint32_t e,
+    uint8_t n[RSA_CMD_MAX_N_BYTES], uint8_t d_p[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t d_q[RSA_CMD_MAX_COFACTOR_BYTES],
+    uint8_t i_q[RSA_CMD_MAX_COFACTOR_BYTES], size_t *n_len,
+    uint8_t sig[RSA_CMD_MAX_SIGNATURE_BYTES], size_t *sig_len, size_t hashing,
+    size_t padding, size_t cfg_in, size_t *cfg_out, size_t trigger) {
   size_t private_key_bytes;
   size_t private_key_blob_bytes;
   size_t num_words;
+  size_t num_bytes;
   otcrypto_rsa_size_t rsa_size;
   switch (*n_len) {
     case kPentestRsa2048NumBytes:
       private_key_bytes = kOtcryptoRsa2048PrivateKeyBytes;
       private_key_blob_bytes = kOtcryptoRsa2048PrivateKeyblobBytes;
       num_words = kPentestRsa2048NumWords;
+      num_bytes = kPentestRsa2048NumBytes;
       rsa_size = kOtcryptoRsaSize2048;
       break;
     case kPentestRsa3072NumBytes:
       private_key_bytes = kOtcryptoRsa3072PrivateKeyBytes;
       private_key_blob_bytes = kOtcryptoRsa3072PrivateKeyblobBytes;
       num_words = kPentestRsa3072NumWords;
+      num_bytes = kPentestRsa3072NumBytes;
       rsa_size = kOtcryptoRsaSize3072;
       break;
     case kPentestRsa4096NumBytes:
       private_key_bytes = kOtcryptoRsa4096PrivateKeyBytes;
       private_key_blob_bytes = kOtcryptoRsa4096PrivateKeyblobBytes;
       num_words = kPentestRsa4096NumWords;
+      num_bytes = kPentestRsa4096NumBytes;
       rsa_size = kOtcryptoRsaSize4096;
       break;
     default:
@@ -338,18 +379,48 @@ status_t cryptolib_sca_rsa_sign_impl(
       LOG_ERROR("Unsupported RSA hash mode: %d", hashing);
       return INVALID_ARGUMENT();
   }
-  // Create two shares for the private exponent (second share is all-zero).
-  uint32_t d_buf[kPentestRsaMaxDWords];
-  memset(d_buf, 0, sizeof(d_buf));
-  memcpy(d_buf, d, *n_len);
 
-  otcrypto_const_word32_buf_t d_share0 = {
-      .data = d_buf,
+  // Store cofactors for CRT modular exponentiation.
+  uint32_t p_buf[kPentestRsaMaxPWords];
+  memset(p_buf, 0, sizeof(p_buf));
+  memcpy(p_buf, p, num_bytes / 2);
+
+  uint32_t q_buf[kPentestRsaMaxQWords];
+  memset(q_buf, 0, sizeof(q_buf));
+  memcpy(q_buf, q, num_bytes / 2);
+
+  otcrypto_const_word32_buf_t cofactor0 = {
+      .data = p_buf,
       .len = num_words,
   };
-  uint32_t share1[kPentestRsaMaxDWords] = {0};
-  otcrypto_const_word32_buf_t d_share1 = {
-      .data = share1,
+  otcrypto_const_word32_buf_t cofactor1 = {
+      .data = q_buf,
+      .len = num_words,
+  };
+
+  // Store CRT components for the private exponent and CRT coefficient.
+  uint32_t d_p_buf[kPentestRsaMaxDpWords];
+  memset(d_p_buf, 0, sizeof(d_p_buf));
+  memcpy(d_p_buf, d_p, num_bytes / 2);
+
+  uint32_t d_q_buf[kPentestRsaMaxDqWords];
+  memset(d_q_buf, 0, sizeof(d_q_buf));
+  memcpy(d_q_buf, d_q, num_bytes / 2);
+
+  uint32_t i_q_buf[kPentestRsaMaxIqWords];
+  memset(i_q_buf, 0, sizeof(i_q_buf));
+  memcpy(i_q_buf, i_q, num_bytes / 2);
+
+  otcrypto_const_word32_buf_t d_component0 = {
+      .data = d_p_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t d_component1 = {
+      .data = d_q_buf,
+      .len = num_words,
+  };
+  otcrypto_const_word32_buf_t crt_coeff = {
+      .data = i_q_buf,
       .len = num_words,
   };
 
@@ -383,8 +454,9 @@ status_t cryptolib_sca_rsa_sign_impl(
   if (trigger & kPentestTrigger1) {
     pentest_set_trigger_high();
   }
-  TRY(otcrypto_rsa_private_key_from_exponents(rsa_size, modulus, e, d_share0,
-                                              d_share1, &private_key));
+  TRY(otcrypto_rsa_private_key_from_exponents(
+      rsa_size, modulus, cofactor0, cofactor1, e, d_component0, d_component1,
+      crt_coeff, &private_key));
   if (trigger & kPentestTrigger1) {
     pentest_set_trigger_low();
   }
