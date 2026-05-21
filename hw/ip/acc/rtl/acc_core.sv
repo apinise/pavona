@@ -33,6 +33,9 @@ module acc_core
   // Enabling PQC hardware support with vector ISA extension
   parameter bit AccPQCEn = 1'b1,
 
+  // Enable whitening of ALU datapaths
+  parameter bit AccWhiteningEn = 1'b1,
+
   // Default seed for URND PRNG
   parameter urnd_prng_seed_t RndCnstUrndPrngSeed = RndCnstUrndPrngSeedDefault,
 
@@ -174,10 +177,11 @@ module acc_core
   logic                     rf_base_spurious_we_err;
   logic                     rf_base_sec_wipe_err;
 
-  alu_base_operation_t  alu_base_operation;
-  alu_base_comparison_t alu_base_comparison;
-  logic [31:0]          alu_base_operation_result;
-  logic                 alu_base_comparison_result;
+  alu_base_operation_t  alu_base_operation, alu_base_whitening_operation;
+  alu_base_comparison_t alu_base_comparison, alu_base_whitening_comparison;
+  logic [31:0]          alu_base_operation_result, alu_base_whitening_operation_result;
+  logic                 alu_base_comparison_result, alu_base_whitening_comparison_result;
+  logic                 whitening_urnd_adv;
 
   logic                     lsu_load_req;
   logic                     lsu_store_req;
@@ -533,10 +537,16 @@ module acc_core
     .rf_bignum_indirect_en_o         (rf_bignum_indirect_en),
 
     // To/from base ALU
-    .alu_base_operation_o        (alu_base_operation),
-    .alu_base_comparison_o       (alu_base_comparison),
-    .alu_base_operation_result_i (alu_base_operation_result),
-    .alu_base_comparison_result_i(alu_base_comparison_result),
+    .alu_base_operation_o                  (alu_base_operation),
+    .alu_base_whitening_operation_o        (alu_base_whitening_operation),
+    .alu_base_comparison_o                 (alu_base_comparison),
+    .alu_base_whitening_comparison_o       (alu_base_whitening_comparison),
+    .alu_base_operation_result_i           (alu_base_operation_result),
+    .alu_base_whitening_operation_result_i (alu_base_whitening_operation_result),
+    .alu_base_comparison_result_i          (alu_base_comparison_result),
+    .alu_base_whitening_comparison_result_i(alu_base_whitening_comparison_result),
+    .whitening_urnd_data_i                 (urnd_data),
+    .whitening_urnd_adv_o                  (whitening_urnd_adv),
 
     // To/from bignum ALU
     .alu_bignum_operation_o       (alu_bignum_operation),
@@ -794,6 +804,20 @@ module acc_core
     .comparison_result_o(alu_base_comparison_result)
   );
 
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_base_alu
+      acc_alu_base u_acc_alu_base_whitening (
+        .clk_i,
+        .rst_ni,
+
+        .operation_i        (alu_base_whitening_operation),
+        .comparison_i       (alu_base_whitening_comparison),
+        .operation_result_o (alu_base_whitening_operation_result),
+        .comparison_result_o(alu_base_whitening_comparison_result)
+      );
+    end
+  endgenerate
+
   acc_rf_bignum #(
     .RegFile(RegFile)
   ) u_acc_rf_bignum (
@@ -993,7 +1017,8 @@ module acc_core
   // necessary to enable urnd_advance using ispr_predec_bignum.ispr_rd_en[IsprUrnd] whenever URND
   // data are consumed by the ALU.
   assign urnd_advance = urnd_advance_start_stop_control | req_sec_wipe_urnd_keys_q |
-                        (SecMuteUrnd & ispr_predec_bignum.ispr_rd_en[IsprUrnd]);
+                        (SecMuteUrnd & ispr_predec_bignum.ispr_rd_en[IsprUrnd]) |
+                        whitening_urnd_adv;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
