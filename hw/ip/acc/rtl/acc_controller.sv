@@ -25,6 +25,9 @@ module acc_controller
   // Enabling PQC hardware support with vector ISA extension
   parameter bit AccPQCEn = 1'b1,
 
+  // Enable whitening of ALU datapaths
+  parameter bit AccWhiteningEn = 1'b1,
+
   localparam int ImemAddrWidth = prim_util_pkg::vbits(ImemSizeByte),
   localparam int DmemAddrWidth = prim_util_pkg::vbits(DmemSizeByte)
 ) (
@@ -104,9 +107,15 @@ module acc_controller
 
   // Base ALU
   output alu_base_operation_t  alu_base_operation_o,
+  output alu_base_operation_t  alu_base_whitening_operation_o,
   output alu_base_comparison_t alu_base_comparison_o,
+  output alu_base_comparison_t alu_base_whitening_comparison_o,
   input  logic [31:0]          alu_base_operation_result_i,
+  input  logic [31:0]          alu_base_whitening_operation_result_i,
   input  logic                 alu_base_comparison_result_i,
+  input  logic                 alu_base_whitening_comparison_result_i,
+  input  logic [255:0]         whitening_urnd_data_i,
+  output logic                 whitening_urnd_adv_o,
 
   // Bignum ALU
   output alu_bignum_operation_t alu_bignum_operation_o,
@@ -200,6 +209,11 @@ module acc_controller
 
   acc_state_e state_q, state_d;
 
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_nets
+      logic whitening_alu_sel;
+    end
+  endgenerate
 
   controller_err_bits_t err_bits_q, err_bits_d;
 
@@ -452,12 +466,27 @@ module acc_controller
 
   // Branch taken when there is a valid branch instruction and comparison passes or a valid jump
   // instruction (which is always taken)
-  assign branch_taken = insn_valid_i &
-                        ((insn_dec_shared_i.branch_insn & alu_base_comparison_result_i) |
-                         insn_dec_shared_i.jump_insn);
   // Branch target computed by base ALU (PC + imm)
-  assign branch_target = alu_base_operation_result_i[ImemAddrWidth-1:0];
-  assign branch_target_overflow = |alu_base_operation_result_i[31:ImemAddrWidth];
+  generate
+    if (AccWhiteningEn) begin : gen_branch_target_whitening
+      logic whitened_base_comparison_result;
+      assign whitened_base_comparison_result = gen_whitening_nets.whitening_alu_sel ?
+          alu_base_comparison_result_i : alu_base_whitening_comparison_result_i;
+
+      assign branch_taken = insn_valid_i &
+                            ((insn_dec_shared_i.branch_insn & whitened_base_comparison_result) |
+                            insn_dec_shared_i.jump_insn);
+
+      assign branch_target = gen_whitening_nets.whitening_alu_sel ? alu_base_operation_result_i[ImemAddrWidth-1:0] : alu_base_whitening_operation_result_i[ImemAddrWidth-1:0];
+      assign branch_target_overflow = gen_whitening_nets.whitening_alu_sel ? |alu_base_operation_result_i[31:ImemAddrWidth] : |alu_base_whitening_operation_result_i[31:ImemAddrWidth];      
+    end else begin : gen_branch_target
+      assign branch_taken = insn_valid_i &
+                            ((insn_dec_shared_i.branch_insn & alu_base_comparison_result_i) |
+                            insn_dec_shared_i.jump_insn);
+      assign branch_target = alu_base_operation_result_i[ImemAddrWidth-1:0];
+      assign branch_target_overflow = |alu_base_operation_result_i[31:ImemAddrWidth];
+    end
+  endgenerate
 
   assign next_insn_addr_wide = {1'b0, insn_addr_i} + 'd4;
   assign next_insn_addr = next_insn_addr_wide[ImemAddrWidth-1:0];
@@ -929,30 +958,118 @@ module acc_controller
     rf_base_wr_en_o   = rf_base_wr_en_raw   & ~illegal_insn_static;
   end
 
-  // Base ALU Operand A MUX
-  always_comb begin
-    unique case (insn_dec_base_i.op_a_sel)
-      OpASelRegister: alu_base_operation_o.operand_a = rf_base_rd_data_a_no_intg;
-      OpASelZero:     alu_base_operation_o.operand_a = '0;
-      OpASelCurrPc:   alu_base_operation_o.operand_a = {{(32 - ImemAddrWidth){1'b0}}, insn_addr_i};
-      default:        alu_base_operation_o.operand_a = rf_base_rd_data_a_no_intg;
-    endcase
-  end
+  generate
+    if (AccWhiteningEn) begin : gen_acc_controller_base_alu_whitening
+      always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+          gen_whitening_nets.whitening_alu_sel <= 1'b1;
+        end else begin
+          if (insn_valid_i && (insn_dec_shared_i.subset == InsnSubsetBase) && !stall) begin
+            gen_whitening_nets.whitening_alu_sel <= ~gen_whitening_nets.whitening_alu_sel;
+          end
+        end
+      end
 
-  // Base ALU Operand B MUX
-  always_comb begin
-    unique case (insn_dec_base_i.op_b_sel)
-      OpBSelRegister:  alu_base_operation_o.operand_b = rf_base_rd_data_b_no_intg;
-      OpBSelImmediate: alu_base_operation_o.operand_b = insn_dec_base_i.i;
-      default:         alu_base_operation_o.operand_b = rf_base_rd_data_b_no_intg;
-    endcase
-  end
+      always_comb begin
+        whitening_urnd_adv_o = 1'b0;
+        if (insn_valid_i && (insn_dec_shared_i.subset == InsnSubsetBase) && !stall) begin
+          whitening_urnd_adv_o = 1'b1;
+        end
+      end
 
-  assign alu_base_operation_o.op = insn_dec_base_i.alu_op;
+      // Base ALU Operand A MUX
+      always_comb begin
+        unique case (insn_dec_base_i.op_a_sel)
+          OpASelRegister: begin
+            alu_base_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+                rf_base_rd_data_a_no_intg : whitening_urnd_data_i[31:0];
+            alu_base_whitening_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+                whitening_urnd_data_i[31:0] : rf_base_rd_data_a_no_intg;
+          end
+          OpASelZero: begin
+            alu_base_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+                '0 : whitening_urnd_data_i[31:0];
+            alu_base_whitening_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+                whitening_urnd_data_i[31:0] : '0;
+          end
+          OpASelCurrPc: begin
+            alu_base_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ? 
+                {{(32 - ImemAddrWidth){1'b0}}, insn_addr_i} : whitening_urnd_data_i[31:0];
+            alu_base_whitening_operation_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+                whitening_urnd_data_i[31:0] : {{(32 - ImemAddrWidth){1'b0}}, insn_addr_i};
+          end
+          default: begin
+            alu_base_operation_o.operand_a = rf_base_rd_data_a_no_intg;
+            alu_base_whitening_operation_o.operand_a = rf_base_rd_data_a_no_intg;
+          end
+        endcase
+      end
 
-  assign alu_base_comparison_o.operand_a = rf_base_rd_data_a_no_intg;
-  assign alu_base_comparison_o.operand_b = rf_base_rd_data_b_no_intg;
-  assign alu_base_comparison_o.op = insn_dec_base_i.comparison_op;
+      // Base ALU Operand B MUX
+      always_comb begin
+        unique case (insn_dec_base_i.op_b_sel)
+          OpBSelRegister: begin
+            alu_base_operation_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+                rf_base_rd_data_b_no_intg : whitening_urnd_data_i[63:32];
+            alu_base_whitening_operation_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+                whitening_urnd_data_i[63:32] : rf_base_rd_data_b_no_intg;
+          end
+          OpBSelImmediate: begin
+            alu_base_operation_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+                insn_dec_base_i.i : whitening_urnd_data_i[63:32];
+            alu_base_whitening_operation_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+                whitening_urnd_data_i[63:32] : insn_dec_base_i.i;
+          end
+          default: begin
+            alu_base_operation_o.operand_b = rf_base_rd_data_b_no_intg;
+            alu_base_whitening_operation_o.operand_b = rf_base_rd_data_b_no_intg;
+          end
+        endcase
+      end
+
+      assign alu_base_operation_o.op = insn_dec_base_i.alu_op;
+      assign alu_base_whitening_operation_o.op = insn_dec_base_i.alu_op;
+
+      assign alu_base_comparison_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+          rf_base_rd_data_a_no_intg : whitening_urnd_data_i[63:32];
+      assign alu_base_whitening_comparison_o.operand_a = gen_whitening_nets.whitening_alu_sel ?
+          whitening_urnd_data_i[63:32] : rf_base_rd_data_a_no_intg;
+
+      assign alu_base_comparison_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+          rf_base_rd_data_b_no_intg : whitening_urnd_data_i[63:32];
+      assign alu_base_whitening_comparison_o.operand_b = gen_whitening_nets.whitening_alu_sel ?
+          whitening_urnd_data_i[63:32] : rf_base_rd_data_b_no_intg;
+
+      assign alu_base_comparison_o.op = insn_dec_base_i.comparison_op;
+      assign alu_base_whitening_comparison_o.op = insn_dec_base_i.comparison_op;
+
+    end else begin : gen_acc_controller_base_alu
+      // Base ALU Operand A MUX
+      always_comb begin
+        unique case (insn_dec_base_i.op_a_sel)
+          OpASelRegister: alu_base_operation_o.operand_a = rf_base_rd_data_a_no_intg;
+          OpASelZero:     alu_base_operation_o.operand_a = '0;
+          OpASelCurrPc:   alu_base_operation_o.operand_a = {{(32 - ImemAddrWidth){1'b0}}, insn_addr_i};
+          default:        alu_base_operation_o.operand_a = rf_base_rd_data_a_no_intg;
+        endcase
+      end
+
+      // Base ALU Operand B MUX
+      always_comb begin
+        unique case (insn_dec_base_i.op_b_sel)
+          OpBSelRegister:  alu_base_operation_o.operand_b = rf_base_rd_data_b_no_intg;
+          OpBSelImmediate: alu_base_operation_o.operand_b = insn_dec_base_i.i;
+          default:         alu_base_operation_o.operand_b = rf_base_rd_data_b_no_intg;
+        endcase
+      end
+
+      assign alu_base_operation_o.op = insn_dec_base_i.alu_op;
+
+      assign alu_base_comparison_o.operand_a = rf_base_rd_data_a_no_intg;
+      assign alu_base_comparison_o.operand_b = rf_base_rd_data_b_no_intg;
+      assign alu_base_comparison_o.op = insn_dec_base_i.comparison_op;
+    end
+  endgenerate
 
   assign rf_base_rd_data_a_no_intg = rf_base_rd_data_a_intg_i[31:0];
   assign rf_base_rd_data_b_no_intg = rf_base_rd_data_b_intg_i[31:0];
@@ -969,32 +1086,66 @@ module acc_controller
   //   `rf_base_wr_data_intg_sel_o` is low.
   // - Data sources that already come with integrity bits go into `rf_base_wr_data_intg_o` and
   //   `rf_base_wr_data_intg_sel_o` is high.
-  always_comb begin
-    // Default values
-    rf_base_wr_data_no_intg_o  = alu_base_operation_result_i;
-    rf_base_wr_data_intg_o     = '0;
-    rf_base_wr_data_intg_sel_o = 1'b0;
 
-    unique case (insn_dec_base_i.rf_wdata_sel)
-      RfWdSelEx: begin
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_rf_wb
+      always_comb begin
+        // Default values
+        rf_base_wr_data_no_intg_o  = gen_whitening_nets.whitening_alu_sel ?
+            alu_base_operation_result_i : alu_base_whitening_operation_result_i;
+        rf_base_wr_data_intg_o     = '0;
+        rf_base_wr_data_intg_sel_o = 1'b0;
+
+        unique case (insn_dec_base_i.rf_wdata_sel)
+          RfWdSelEx: begin
+            rf_base_wr_data_no_intg_o  = gen_whitening_nets.whitening_alu_sel ?
+                alu_base_operation_result_i : alu_base_whitening_operation_result_i;
+          end
+          RfWdSelNextPc: begin
+            rf_base_wr_data_no_intg_o  = {{(32-(ImemAddrWidth+1)){1'b0}}, next_insn_addr_wide};
+          end
+          RfWdSelIspr: begin
+            rf_base_wr_data_no_intg_o  = csr_rdata;
+          end
+          RfWdSelIncr: begin
+            rf_base_wr_data_no_intg_o  = increment_out;
+          end
+          RfWdSelLsu: begin
+            rf_base_wr_data_intg_sel_o = 1'b1;
+            rf_base_wr_data_intg_o     = lsu_base_rdata_i;
+          end
+          default: ;
+        endcase
+      end
+    end else begin : gen_rf_wb
+      always_comb begin
+        // Default values
         rf_base_wr_data_no_intg_o  = alu_base_operation_result_i;
+        rf_base_wr_data_intg_o     = '0;
+        rf_base_wr_data_intg_sel_o = 1'b0;
+
+        unique case (insn_dec_base_i.rf_wdata_sel)
+          RfWdSelEx: begin
+            rf_base_wr_data_no_intg_o  = alu_base_operation_result_i;
+          end
+          RfWdSelNextPc: begin
+            rf_base_wr_data_no_intg_o  = {{(32-(ImemAddrWidth+1)){1'b0}}, next_insn_addr_wide};
+          end
+          RfWdSelIspr: begin
+            rf_base_wr_data_no_intg_o  = csr_rdata;
+          end
+          RfWdSelIncr: begin
+            rf_base_wr_data_no_intg_o  = increment_out;
+          end
+          RfWdSelLsu: begin
+            rf_base_wr_data_intg_sel_o = 1'b1;
+            rf_base_wr_data_intg_o     = lsu_base_rdata_i;
+          end
+          default: ;
+        endcase
       end
-      RfWdSelNextPc: begin
-        rf_base_wr_data_no_intg_o  = {{(32-(ImemAddrWidth+1)){1'b0}}, next_insn_addr_wide};
-      end
-      RfWdSelIspr: begin
-        rf_base_wr_data_no_intg_o  = csr_rdata;
-      end
-      RfWdSelIncr: begin
-        rf_base_wr_data_no_intg_o  = increment_out;
-      end
-      RfWdSelLsu: begin
-        rf_base_wr_data_intg_sel_o = 1'b1;
-        rf_base_wr_data_intg_o     = lsu_base_rdata_i;
-      end
-      default: ;
-    endcase
-  end
+    end
+  endgenerate
 
   for (genvar i = 0; i < BaseWordsPerWLEN; ++i) begin : g_rf_bignum_rd_data
     assign rf_bignum_rd_data_a_no_intg[i*32+:32] = rf_bignum_rd_data_a_intg_i[i*39+:32];
@@ -1609,7 +1760,15 @@ module acc_controller
   // itself occurs in the second cycle when the store data is available (from the indirect register
   // read). The calculated address is saved in a flop here so it's available for use in the second
   // cycle.
-  assign lsu_addr_saved_d = alu_base_operation_result_i[DmemAddrWidth-1:0];
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_lsu_addr_saved
+      assign lsu_addr_saved_d = gen_whitening_nets.whitening_alu_sel ?
+          alu_base_operation_result_i[DmemAddrWidth-1:0] :
+          alu_base_whitening_operation_result_i[DmemAddrWidth-1:0];
+    end else begin : gen_lsu_addr_saved
+      assign lsu_addr_saved_d = alu_base_operation_result_i[DmemAddrWidth-1:0];
+    end
+  endgenerate
   always_ff @(posedge clk_i) begin
     lsu_addr_saved_q <= lsu_addr_saved_d;
   end
@@ -1636,8 +1795,19 @@ module acc_controller
     insn_valid_i & ((insn_dec_shared_i.subset == InsnSubsetBignum) ||
                     insn_dec_shared_i.ld_insn                         ? ~stall : 1'b0);
 
-  assign lsu_addr = lsu_addr_saved_sel ? lsu_addr_saved_q                                :
-                                         alu_base_operation_result_i[DmemAddrWidth-1:0];
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_lsu_addr
+      logic [31:0] whitened_alu_res;
+      assign whitened_alu_res = gen_whitening_nets.whitening_alu_sel ?
+          alu_base_operation_result_i[DmemAddrWidth-1:0] :
+          alu_base_whitening_operation_result_i[DmemAddrWidth-1:0];
+      assign lsu_addr = lsu_addr_saved_sel ?
+          lsu_addr_saved_q : whitened_alu_res[DmemAddrWidth-1:0];
+    end else begin : gen_lsu_addr
+      assign lsu_addr = lsu_addr_saved_sel ?
+          lsu_addr_saved_q : alu_base_operation_result_i[DmemAddrWidth-1:0];
+    end
+  endgenerate
 
   // SEC_CM: CTRL.REDUN
   assign expected_lsu_addr_en =
@@ -1691,7 +1861,15 @@ module acc_controller
       (lsu_req_subset_o == InsnSubsetBignum) & (|lsu_addr_o[$clog2(WLEN/8)-1:0]);
   assign dmem_addr_unaligned_base   =
       (lsu_req_subset_o == InsnSubsetBase)   & (|lsu_addr_o[1:0]);
-  assign dmem_addr_overflow         = |alu_base_operation_result_i[31:DmemAddrWidth];
+  generate
+    if (AccWhiteningEn) begin : gen_whitened_dmem_addr_overflow
+      assign dmem_addr_overflow = gen_whitening_nets.whitening_alu_sel ?
+          |alu_base_operation_result_i[31:DmemAddrWidth] :
+          |alu_base_whitening_operation_result_i[31:DmemAddrWidth];
+    end else begin : gen_dmem_addr_overflow
+      assign dmem_addr_overflow = |alu_base_operation_result_i[31:DmemAddrWidth];
+    end
+  endgenerate
 
   // A dmem address is checked the cycle it is available. For bignum stores this is the first cycle
   // where the base register file read occurs, with the store request occurring the following cycle.
