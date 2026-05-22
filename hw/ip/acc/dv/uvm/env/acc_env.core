@@ -25,6 +25,7 @@ filesets:
       - acc_alu_bignum_if.sv
       - acc_controller_if.sv
       - acc_mac_bignum_if.sv
+      - acc_mac_regs_if.sv
       - acc_rf_base_if.sv
       - acc_insn_cnt_if.sv
       - acc_rnd_if.sv
