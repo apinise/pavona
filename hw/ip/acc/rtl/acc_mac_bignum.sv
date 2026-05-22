@@ -15,7 +15,8 @@ module acc_mac_bignum
   import acc_pkg::*;
 #(
   // Enabling PQC hardware support with vector ISA extension
-  parameter bit AccPQCEn = 1'b1
+  parameter  bit AccPQCEn      = 1'b1,
+  localparam int MacAdderWidth = (AccPQCEn) ? 2*WLEN : WLEN
 ) (
   input logic clk_i,
   input logic rst_ni,
@@ -24,10 +25,11 @@ module acc_mac_bignum
   input logic                  mac_en_i,
   input logic                  mac_commit_i,
 
-  output logic [WLEN-1:0] operation_result_o,
-  output flags_t          operation_flags_o,
-  output flags_t          operation_flags_en_o,
-  output logic            operation_intg_violation_err_o,
+  output logic [WLEN-1:0]          operation_result_o,
+  output logic [MacAdderWidth-1:0] adder_result_o,
+  output flags_t                   operation_flags_o,
+  output flags_t                   operation_flags_en_o,
+  output logic                     operation_intg_violation_err_o,
 
   input  mac_predec_bignum_t mac_predec_bignum_i,
   output logic               predec_error_o,
@@ -48,8 +50,6 @@ module acc_mac_bignum
 );
   // The MAC operates on quarter-words, QWLEN gives the number of bits in a quarter-word.
   localparam int unsigned QWLEN = WLEN / 4;
-  // Width of adder and mul nets based on PQC enable
-  localparam int ADDER_WIDTH = (AccPQCEn) ? 2*WLEN : WLEN;
 
   // Tie unused ports to '0
   generate
@@ -67,10 +67,10 @@ module acc_mac_bignum
   endgenerate
 
   // Adder nets have width assigned based on PQC enable
-  logic [ADDER_WIDTH-1:0] adder_op_a;
-  logic [ADDER_WIDTH-1:0] adder_op_b;
-  logic [ADDER_WIDTH-1:0] adder_result;
-  logic [ADDER_WIDTH-1:0] mul_res_shifted;
+  logic [MacAdderWidth-1:0] adder_op_a;
+  logic [MacAdderWidth-1:0] adder_op_b;
+  logic [MacAdderWidth-1:0] adder_result;
+  logic [MacAdderWidth-1:0] mul_res_shifted;
 
   logic [1:0]      adder_result_hw_is_zero;
 
@@ -505,6 +505,8 @@ module acc_mac_bignum
       assign operation_result_o = adder_result;
     end
   endgenerate
+
+  assign adder_result_o = adder_result;
 
   generate
     if (AccPQCEn) begin : gen_expected_op_en_pqc

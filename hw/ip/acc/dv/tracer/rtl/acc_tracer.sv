@@ -15,7 +15,8 @@
  * get the information it needs. For further information see `hw/ip/acc/dv/tracer/README.md`.
  */
 module acc_tracer #(
-  parameter bit AccPQCEn = acc_pqc_env_pkg::AccPQCEn
+  parameter bit AccPQCEn = acc_pqc_env_pkg::AccPQCEn,
+  parameter bit AccWhiteningEn = acc_pqc_env_pkg::AccWhiteningEn
 ) (
   input  logic  clk_i,
   input  logic  rst_ni,
