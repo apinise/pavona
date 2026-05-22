@@ -228,6 +228,8 @@ module acc_core
   mac_bignum_operation_t mac_bignum_whitening_operation;
   logic [WLEN-1:0]       mac_bignum_operation_result;
   logic [WLEN-1:0]       mac_bignum_whitening_operation_result;
+  logic [WLEN-1:0]       mac_acc_blanked;
+  logic [WLEN-1:0]       mac_acch_blanked;
   logic [MacAdderWidth-1:0] mac_bignum_adder_result;
   logic [MacAdderWidth-1:0] mac_bignum_whitening_adder_result;
   flags_t                mac_bignum_operation_flags;
@@ -240,9 +242,15 @@ module acc_core
   logic                  mac_bignum_whitening_commit;
   logic                  mac_whitening_sel;
   logic                  mac_bignum_reg_intg_violation_err;
-  logic                  mac_bignum_whitening_reg_intg_violation_err;
   logic                  mac_bignum_sec_wipe_err;
-  logic                  mac_bignum_whitening_sec_wipe_err;
+
+  // MAC Muxed signals from whitening
+  mac_bignum_operation_t    mac_bignum_operation_muxed;
+  logic                     mac_bignum_en_muxed;
+  logic                     mac_bignum_commit_muxed;
+  logic [MacAdderWidth-1:0] mac_adder_result_muxed;
+  flags_t                   mac_bignum_operation_flags_muxed;
+  flags_t                   mac_bignum_operation_flags_en_muxed;
 
   ispr_e                       ispr_addr;
   logic [31:0]                 ispr_base_wdata;
@@ -473,8 +481,7 @@ module acc_core
                           rf_base_sec_wipe_err,
                           rf_bignum_wr_sec_wipe_err,
                           alu_bignum_sec_wipe_err,
-                          mac_bignum_sec_wipe_err,
-                          mac_bignum_whitening_sec_wipe_err};
+                          mac_bignum_sec_wipe_err};
 
   // Controller: coordinate between functional units, prepare their inputs (e.g. by muxing between
   // operand sources), and post-process their outputs as needed.
@@ -656,8 +663,7 @@ module acc_core
 
   logic non_controller_reg_intg_violation;
   assign non_controller_reg_intg_violation =
-      |{alu_bignum_reg_intg_violation_err, mac_bignum_reg_intg_violation_err,
-        rf_base_intg_err, mac_bignum_whitening_reg_intg_violation_err};
+      |{alu_bignum_reg_intg_violation_err, mac_bignum_reg_intg_violation_err, rf_base_intg_err};
 
 
   // Generate an err_bits output by combining errors from all the blocks in acc_core
@@ -941,8 +947,8 @@ module acc_core
     .sec_wipe_running_i       (secure_wipe_running_o),
     .sec_wipe_err_o           (alu_bignum_sec_wipe_err),
 
-    .mac_operation_flags_i   (mac_bignum_operation_flags),
-    .mac_operation_flags_en_i(mac_bignum_operation_flags_en),
+    .mac_operation_flags_i   (mac_bignum_operation_flags_muxed),
+    .mac_operation_flags_en_i(mac_bignum_operation_flags_en_muxed),
 
     .rnd_data_i (rnd_data),
     .urnd_data_i(urnd_data),
@@ -966,32 +972,20 @@ module acc_core
     .clk_i,
     .rst_ni,
 
-    .operation_i                    (mac_bignum_operation),
-    .operation_result_o             (mac_bignum_operation_result),
-    .adder_result_o                 (mac_bignum_adder_result),
-    .operation_flags_o              (mac_bignum_operation_flags),
-    .operation_flags_en_o           (mac_bignum_operation_flags_en),
-    .operation_intg_violation_err_o (mac_bignum_reg_intg_violation_err),
-
-    .mac_predec_bignum_i(mac_predec_bignum),
-    .predec_error_o     (mac_bignum_predec_error),
-
-    .urnd_data_i         (urnd_data),
-    .sec_wipe_acc_urnd_i (sec_wipe_acc_urnd),
-    .sec_wipe_acch_urnd_i(sec_wipe_acch_urnd),
-    .sec_wipe_running_i  (secure_wipe_running_o),
-    .sec_wipe_err_o      (mac_bignum_sec_wipe_err),
-
+    .operation_i (mac_bignum_operation),
     .mac_en_i    (mac_bignum_en),
     .mac_commit_i(mac_bignum_commit),
+  
+    .operation_result_o  (mac_bignum_operation_result),
+    .adder_result_o      (mac_bignum_adder_result),
+    .operation_flags_o   (mac_bignum_operation_flags),
+    .operation_flags_en_o(mac_bignum_operation_flags_en),
 
-    .ispr_acch_intg_o        (ispr_acch_intg),
-    .ispr_acch_wr_data_intg_i(ispr_acch_wr_data_intg),
-    .ispr_acch_wr_en_i       (ispr_acch_wr_en),
+    .acch_blanked_i(mac_acch_blanked),
+    .acc_blanked_i (mac_acc_blanked),
 
-    .ispr_acc_intg_o        (ispr_acc_intg),
-    .ispr_acc_wr_data_intg_i(ispr_acc_wr_data_intg),
-    .ispr_acc_wr_en_i       (ispr_acc_wr_en)
+    .mac_predec_bignum_i(mac_predec_bignum),
+    .predec_error_o     (mac_bignum_predec_error)
   );
 
   generate
@@ -1002,60 +996,53 @@ module acc_core
         .clk_i,
         .rst_ni,
 
-        .operation_i                    (mac_bignum_whitening_operation),
-        .operation_result_o             (mac_bignum_whitening_operation_result),
-        .adder_result_o                 (mac_bignum_whitening_adder_result),
-        .operation_flags_o              (mac_bignum_whitening_operation_flags),
-        .operation_flags_en_o           (mac_bignum_whitening_operation_flags_en),
-        .operation_intg_violation_err_o (mac_bignum_whitening_reg_intg_violation_err),
-
-        .mac_predec_bignum_i(mac_predec_bignum),
-        .predec_error_o     (mac_bignum_whitening_predec_error),
-
-        .urnd_data_i         (urnd_data),
-        .sec_wipe_acc_urnd_i (sec_wipe_acc_urnd),
-        .sec_wipe_acch_urnd_i(sec_wipe_acch_urnd),
-        .sec_wipe_running_i  (secure_wipe_running_o),
-        .sec_wipe_err_o      (mac_bignum_whitening_sec_wipe_err),
-
+        .operation_i (mac_bignum_whitening_operation),
         .mac_en_i    (mac_bignum_whitening_en),
         .mac_commit_i(mac_bignum_whitening_commit),
 
-        .ispr_acch_intg_o        (ispr_acch_whitening_intg),
-        .ispr_acch_wr_data_intg_i(ispr_acch_wr_data_intg),
-        .ispr_acch_wr_en_i       (ispr_acch_wr_en),
+        .operation_result_o  (mac_bignum_whitening_operation_result),
+        .adder_result_o      (mac_bignum_whitening_adder_result),
+        .operation_flags_o   (mac_bignum_whitening_operation_flags),
+        .operation_flags_en_o(mac_bignum_whitening_operation_flags_en),
 
-        .ispr_acc_intg_o        (ispr_acc_whitening_intg),
-        .ispr_acc_wr_data_intg_i(ispr_acc_wr_data_intg),
-        .ispr_acc_wr_en_i       (ispr_acc_wr_en)
+        .acch_blanked_i(mac_acch_blanked),
+        .acc_blanked_i (mac_acc_blanked),
+
+        .mac_predec_bignum_i(mac_predec_bignum),
+        .predec_error_o     (mac_bignum_whitening_predec_error)
       );
 
-      assign ispr_acch_intg_res = mac_whitening_sel ? ispr_acch_intg : ispr_acch_whitening_intg;
-      assign ispr_acc_intg_res = mac_whitening_sel ? ispr_acc_intg : ispr_acc_whitening_intg;
-    end else begin : gen_ispr_acc_mux
+      always_comb begin
+        if (mac_whitening_sel) begin
+          mac_bignum_operation_muxed = mac_bignum_operation;
+          mac_bignum_en_muxed = mac_bignum_en;
+          mac_bignum_commit_muxed = mac_bignum_commit;
+          mac_adder_result_muxed = mac_bignum_adder_result;
+          mac_bignum_operation_flags_muxed = mac_bignum_operation_flags;
+          mac_bignum_operation_flags_en_muxed = mac_bignum_operation_flags_en;
+          ispr_acch_intg_res = ispr_acch_intg;
+          ispr_acc_intg_res = ispr_acc_intg;
+        end else begin
+          mac_bignum_operation_muxed = mac_bignum_whitening_operation;
+          mac_bignum_en_muxed = mac_bignum_whitening_en;
+          mac_bignum_commit_muxed = mac_bignum_whitening_commit;
+          mac_adder_result_muxed = mac_bignum_whitening_adder_result;
+          mac_bignum_operation_flags_muxed = mac_bignum_whitening_operation_flags;
+          mac_bignum_operation_flags_en_muxed = mac_bignum_whitening_operation_flags_en;
+          ispr_acch_intg_res = ispr_acch_whitening_intg;
+          ispr_acc_intg_res = ispr_acc_whitening_intg;
+        end
+      end
+    end else begin : gen_mac_mux
+      assign mac_bignum_operation_muxed = mac_bignum_operation;
+      assign mac_bignum_en_muxed = mac_bignum_en;
+      assign mac_bignum_commit_muxed = mac_bignum_commit;
+      assign mac_adder_result_muxed = mac_bignum_adder_result;
+      assign mac_bignum_operation_flags_muxed = mac_bignum_operation_flags;
+      assign mac_bignum_operation_flags_en_muxed = mac_bignum_operation_flags_en;
       assign ispr_acch_intg_res = ispr_acch_intg;
       assign ispr_acc_intg_res = ispr_acc_intg;
     end
-
-    mac_bignum_operation_t    mac_bignum_operation_muxed;
-    logic                     mac_bignum_en_muxed;
-    logic                     mac_bignum_commit_muxed;
-    logic [MacAdderWidth-1:0] mac_adder_result_muxed;
-
-    always_comb begin
-      if (mac_whitening_sel) begin
-        mac_bignum_operation_muxed = mac_bignum_operation;
-        mac_bignum_en_muxed = mac_bignum_en;
-        mac_bignum_commit_muxed = mac_bignum_commit;
-        mac_adder_result_muxed = mac_bignum_adder_result;
-      end else begin
-        mac_bignum_operation_muxed = mac_bignum_whitening_operation;
-        mac_bignum_en_muxed = mac_bignum_whitening_en;
-        mac_bignum_commit_muxed = mac_bignum_whitening_commit;
-        mac_adder_result_muxed = mac_bignum_whitening_adder_result;
-      end
-    end
-
   endgenerate
 
   acc_mac_regs #(
@@ -1069,22 +1056,22 @@ module acc_core
     .mac_commit_i      (mac_bignum_commit_muxed),
     .mac_adder_result_i(mac_adder_result_muxed),
 
-    .mac_predec_bignum_i(mac_predec_bignum),
-    .operation_intg_violation_err_o(),
+    .mac_predec_bignum_i           (mac_predec_bignum),
+    .operation_intg_violation_err_o(mac_bignum_reg_intg_violation_err),
 
     .urnd_data_i         (urnd_data),
     .sec_wipe_acc_urnd_i (sec_wipe_acc_urnd),
     .sec_wipe_acch_urnd_i(sec_wipe_acch_urnd),
     .sec_wipe_running_i  (secure_wipe_running_o),
-    .sec_wipe_err_o      (),
+    .sec_wipe_err_o      (mac_bignum_sec_wipe_err),
 
-    .ispr_acch_intg_o        (),
-    .acch_blanked_o          (),
+    .ispr_acch_intg_o        (ispr_acch_intg),
+    .acch_blanked_o          (mac_acch_blanked),
     .ispr_acch_wr_data_intg_i(ispr_acch_wr_data_intg),
     .ispr_acch_wr_en_i       (ispr_acch_wr_en),
 
-    .ispr_acc_intg_o        (),
-    .acc_blanked_o          (),
+    .ispr_acc_intg_o        (ispr_acc_intg),
+    .acc_blanked_o          (mac_acc_blanked),
     .ispr_acc_wr_data_intg_i(ispr_acc_wr_data_intg),
     .ispr_acc_wr_en_i       (ispr_acc_wr_en)
   );

@@ -13,24 +13,24 @@ class acc_mac_bignum_acc_err_vseq extends acc_intg_err_vseq;
   protected task await_use(output bit [acc_pkg::BaseWordsPerWLEN-1:0] used_words);
     used_words = '0;
     `uvm_info(`gfn, "Waiting for `acc_intg_q` to be used", UVM_LOW)
-    cfg.mac_bignum_vif.wait_for_acc_used(200, used_words);
+    cfg.mac_regs_vif.wait_for_acc_used(200, used_words);
   endtask
 
   protected task inject_errors(input  bit [acc_pkg::BaseWordsPerWLEN-1:0] used_words,
                                output bit [acc_pkg::BaseWordsPerWLEN-1:0] corrupted_words);
-    bit [acc_pkg::ExtWLEN-1:0] new_data = corrupt_data(cfg.mac_bignum_vif.acc_intg_q,
+    bit [acc_pkg::ExtWLEN-1:0] new_data = corrupt_data(cfg.mac_regs_vif.acc_intg_q,
                                                         '{default: 50},
                                                         corrupted_words);
     if (corrupted_words != '0) begin
-      `uvm_info(`gfn, "Injecting errors into `acc_intg_q` of `acc_mac_bignum`", UVM_LOW)
-      cfg.mac_bignum_vif.force_acc_intg_q(new_data);
+      `uvm_info(`gfn, "Injecting errors into `acc_intg_q` of `acc_mac_regs`", UVM_LOW)
+      cfg.mac_regs_vif.force_acc_intg_q(new_data);
     end else begin
       `uvm_info(`gfn, "Randomization decided to not inject any errors.", UVM_LOW)
     end
   endtask
 
   protected task release_force();
-    cfg.mac_bignum_vif.release_acc_intg_q();
+    cfg.mac_regs_vif.release_acc_intg_q();
   endtask
 
 endclass

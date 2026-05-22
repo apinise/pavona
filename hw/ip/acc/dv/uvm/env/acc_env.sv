@@ -73,6 +73,10 @@ class acc_env extends cip_base_env #(
                                                          cfg.mac_bignum_vif)) begin
       `uvm_fatal(`gfn, "failed to get acc_mac_bignum_if handle from uvm_config_db")
     end
+    if (!uvm_config_db#(virtual acc_mac_regs_if)::get(this, "", "mac_regs_vif",
+                                                         cfg.mac_regs_vif)) begin
+      `uvm_fatal(`gfn, "failed to get acc_mac_regs_if handle from uvm_config_db")
+    end
     if (!uvm_config_db#(virtual acc_rf_base_if)::get(this, "", "rf_base_vif",
                                                       cfg.rf_base_vif)) begin
       `uvm_fatal(`gfn, "failed to get acc_rf_base_if handle from uvm_config_db")

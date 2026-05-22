@@ -26,6 +26,7 @@ class acc_env_cfg extends cip_base_env_cfg #(.RAL_T(acc_reg_block));
   virtual acc_alu_bignum_if alu_bignum_vif;
   virtual acc_controller_if controller_vif;
   virtual acc_mac_bignum_if mac_bignum_vif;
+  virtual acc_mac_regs_if   mac_regs_vif;
   virtual acc_rf_base_if    rf_base_vif;
   virtual acc_escalate_if   escalate_vif;
   virtual acc_rnd_if        rnd_vif;
