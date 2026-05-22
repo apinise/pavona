@@ -127,9 +127,14 @@ module acc_controller
 
   // Bignum MAC
   output mac_bignum_operation_t mac_bignum_operation_o,
+  output mac_bignum_operation_t mac_bignum_whitening_operation_o,
   input  logic [WLEN-1:0]       mac_bignum_operation_result_i,
+  input  logic [WLEN-1:0]       mac_bignum_whitening_operation_result_i,
   output logic                  mac_bignum_en_o,
+  output logic                  mac_bignum_whitening_en_o,
   output logic                  mac_bignum_commit_o,
+  output logic                  mac_bignum_whitening_commit_o,
+  output logic                  mac_bignum_whitening_sel_o,
 
   // LSU
   output logic                     lsu_load_req_o,
@@ -214,6 +219,30 @@ module acc_controller
   generate
     if (AccWhiteningEn) begin : gen_whitening_nets
       logic whitening_alu_sel;
+      logic whitening_mac_sel;
+      logic urnd_base_adv;
+      logic urnd_mac_adv;
+    end
+  endgenerate
+
+  generate
+    if (!AccWhiteningEn) begin : gen_unused_whitening_ports
+      assign alu_base_whitening_operation_o = '0;
+      assign alu_base_whitening_comparison_o = '0;
+      assign mac_bignum_whitening_operation_o = '0;
+      assign mac_bignum_whitening_en_o = '0;
+      assign mac_bignum_whitening_commit_o = '0;
+      assign whitening_urnd_adv_o = '0;
+      assign mac_bignum_whitening_sel_o ='0;
+
+      logic unused_whitening_bits;
+      assign unused_whitening_bits = ^{alu_base_whitening_operation_result_i,
+                                       alu_base_whitening_comparison_result_i,
+                                       whitening_urnd_data_i,
+                                       mac_bignum_whitening_operation_result_i};
+    end else begin : gen_whitening_assignment
+      assign whitening_urnd_adv_o = gen_whitening_nets.urnd_base_adv |
+                                    gen_whitening_nets.urnd_mac_adv;
     end
   endgenerate
 
@@ -986,9 +1015,9 @@ module acc_controller
       end
 
       always_comb begin
-        whitening_urnd_adv_o = 1'b0;
+        gen_whitening_nets.urnd_base_adv = 1'b0;
         if (insn_valid_i && (insn_dec_shared_i.subset == InsnSubsetBase) && !stall) begin
-          whitening_urnd_adv_o = 1'b1;
+          gen_whitening_nets.urnd_base_adv = 1'b1;
         end
       end
 
@@ -1239,26 +1268,75 @@ module acc_controller
   assign alu_bignum_operation_valid_o  = insn_valid_i;
   assign alu_bignum_operation_commit_o = insn_executing;
 
-  assign mac_bignum_operation_o.operand_a         = rf_bignum_rd_data_a_no_intg;
-  assign mac_bignum_operation_o.operand_b         = rf_bignum_rd_data_b_no_intg;
+  generate
+    if (AccWhiteningEn) begin : gen_acc_controller_whitening_mac
+      always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+          gen_whitening_nets.whitening_mac_sel <= 1'b1;
+        end else begin
+          if (insn_valid_i && insn_dec_bignum_i.mac_en && !stall) begin
+            gen_whitening_nets.whitening_mac_sel <= ~gen_whitening_nets.whitening_mac_sel;
+          end
+        end
+      end
+
+      always_comb begin
+        gen_whitening_nets.urnd_mac_adv = 1'b0;
+        if (insn_valid_i && insn_dec_bignum_i.mac_en) begin
+          gen_whitening_nets.urnd_mac_adv = 1'b1;
+        end
+      end
+
+      assign mac_bignum_operation_o.operand_a = gen_whitening_nets.whitening_mac_sel ? rf_bignum_rd_data_a_no_intg : whitening_urnd_data_i[255:0];
+      assign mac_bignum_whitening_operation_o.operand_a = gen_whitening_nets.whitening_mac_sel ? whitening_urnd_data_i[255:0] : rf_bignum_rd_data_a_no_intg;
+
+      assign mac_bignum_operation_o.operand_b = gen_whitening_nets.whitening_mac_sel ? rf_bignum_rd_data_b_no_intg : whitening_urnd_data_i[255:0];
+      assign mac_bignum_whitening_operation_o.operand_b = gen_whitening_nets.whitening_mac_sel ? whitening_urnd_data_i[255:0] : rf_bignum_rd_data_b_no_intg;
+
+      assign mac_bignum_whitening_operation_o.operand_a_qw_sel = insn_dec_bignum_i.mac_op_a_qw_sel;
+      assign mac_bignum_whitening_operation_o.operand_b_qw_sel = insn_dec_bignum_i.mac_op_b_qw_sel;
+      assign mac_bignum_whitening_operation_o.wr_hw_sel_upper =
+          insn_dec_bignum_i.mac_wr_hw_sel_upper;
+      assign mac_bignum_whitening_operation_o.pre_acc_shift_imm =
+          insn_dec_bignum_i.mac_pre_acc_shift;
+      assign mac_bignum_whitening_operation_o.zero_acc = insn_dec_bignum_i.mac_zero_acc;
+      assign mac_bignum_whitening_operation_o.shift_acc = insn_dec_bignum_i.mac_shift_out;
+      assign mac_bignum_whitening_operation_o.mulv = insn_dec_bignum_i.mac_mulv;
+      assign mac_bignum_whitening_operation_o.data_type = insn_dec_bignum_i.mac_data_type;
+      assign mac_bignum_whitening_operation_o.sel = insn_dec_bignum_i.mac_sel;
+      assign mac_bignum_whitening_operation_o.lane_mode = insn_dec_bignum_i.mac_lane_mode;
+      assign mac_bignum_whitening_operation_o.lane_word_32 = insn_dec_bignum_i.mac_lane_word_32;
+      assign mac_bignum_whitening_operation_o.lane_word_16 = insn_dec_bignum_i.mac_lane_word_16;
+      assign mac_bignum_whitening_operation_o.exec_mode = insn_dec_bignum_i.mac_exec_mode;
+
+      assign mac_bignum_whitening_en_o     = insn_valid_i & insn_dec_bignum_i.mac_en;
+      assign mac_bignum_whitening_commit_o = insn_executing;
+
+      assign mac_bignum_whitening_sel_o = gen_whitening_nets.whitening_mac_sel;
+    end else begin : gen_acc_controller_mac
+      assign mac_bignum_operation_o.operand_a = rf_bignum_rd_data_a_no_intg;
+      assign mac_bignum_operation_o.operand_b = rf_bignum_rd_data_b_no_intg;
+    end
+  endgenerate
+
   assign mac_bignum_operation_o.operand_a_qw_sel  = insn_dec_bignum_i.mac_op_a_qw_sel;
   assign mac_bignum_operation_o.operand_b_qw_sel  = insn_dec_bignum_i.mac_op_b_qw_sel;
   assign mac_bignum_operation_o.wr_hw_sel_upper   = insn_dec_bignum_i.mac_wr_hw_sel_upper;
   assign mac_bignum_operation_o.pre_acc_shift_imm = insn_dec_bignum_i.mac_pre_acc_shift;
   assign mac_bignum_operation_o.zero_acc          = insn_dec_bignum_i.mac_zero_acc;
   assign mac_bignum_operation_o.shift_acc         = insn_dec_bignum_i.mac_shift_out;
+  assign mac_bignum_operation_o.mulv              = insn_dec_bignum_i.mac_mulv;
+  assign mac_bignum_operation_o.data_type         = insn_dec_bignum_i.mac_data_type;
+  assign mac_bignum_operation_o.sel               = insn_dec_bignum_i.mac_sel;
+  assign mac_bignum_operation_o.lane_mode         = insn_dec_bignum_i.mac_lane_mode;
+  assign mac_bignum_operation_o.lane_word_32      = insn_dec_bignum_i.mac_lane_word_32;
+  assign mac_bignum_operation_o.lane_word_16      = insn_dec_bignum_i.mac_lane_word_16;
+  assign mac_bignum_operation_o.exec_mode         = insn_dec_bignum_i.mac_exec_mode;
 
   // Vector instruction flags for the PQC extension are driven by default values in the decoder
   assign alu_bignum_operation_o.vector_type   = insn_dec_bignum_i.vector_type;
   assign alu_bignum_operation_o.vector_sel    = insn_dec_bignum_i.vector_sel;
   assign alu_bignum_operation_o.trn_type      = insn_dec_bignum_i.alu_trn_type;
-  assign mac_bignum_operation_o.mulv          = insn_dec_bignum_i.mac_mulv;
-  assign mac_bignum_operation_o.data_type     = insn_dec_bignum_i.mac_data_type;
-  assign mac_bignum_operation_o.sel           = insn_dec_bignum_i.mac_sel;
-  assign mac_bignum_operation_o.lane_mode     = insn_dec_bignum_i.mac_lane_mode;
-  assign mac_bignum_operation_o.lane_word_32  = insn_dec_bignum_i.mac_lane_word_32;
-  assign mac_bignum_operation_o.lane_word_16  = insn_dec_bignum_i.mac_lane_word_16;
-  assign mac_bignum_operation_o.exec_mode     = insn_dec_bignum_i.mac_exec_mode;
 
   assign mac_bignum_en_o     = insn_valid_i & insn_dec_bignum_i.mac_en;
   assign mac_bignum_commit_o = insn_executing;
@@ -1418,12 +1496,27 @@ module acc_controller
   // accepts write data for the top half in the top half of the write data input). Otherwise
   // (shift-out to bottom half and all other BN.MULQACC instructions) simply pass the MAC result
   // through unchanged as write data.
-  assign mac_bignum_rf_wr_data[WLEN-1:WLEN/2] =
-      insn_dec_bignum_i.mac_wr_hw_sel_upper &&
-      insn_dec_bignum_i.mac_shift_out          ? mac_bignum_operation_result_i[WLEN/2-1:0] :
-                                                 mac_bignum_operation_result_i[WLEN-1:WLEN/2];
+  generate
+    if (AccWhiteningEn) begin : gen_whitening_mac_bignum_rf_wr
+      logic [WLEN-1:0] mac_bignum_whitened_res;
+      assign mac_bignum_whitened_res = gen_whitening_nets.whitening_mac_sel ?
+          mac_bignum_operation_result_i : mac_bignum_whitening_operation_result_i;
 
-  assign mac_bignum_rf_wr_data[WLEN/2-1:0] = mac_bignum_operation_result_i[WLEN/2-1:0];
+      assign mac_bignum_rf_wr_data[WLEN-1:WLEN/2] =
+          insn_dec_bignum_i.mac_wr_hw_sel_upper &&
+          insn_dec_bignum_i.mac_shift_out ? mac_bignum_whitened_res[WLEN/2-1:0] :
+                                            mac_bignum_whitened_res[WLEN-1:WLEN/2];
+
+      assign mac_bignum_rf_wr_data[WLEN/2-1:0] = mac_bignum_whitened_res[WLEN/2-1:0];
+    end else begin : gen_mac_bignum_rf_wr
+      assign mac_bignum_rf_wr_data[WLEN-1:WLEN/2] =
+          insn_dec_bignum_i.mac_wr_hw_sel_upper &&
+          insn_dec_bignum_i.mac_shift_out ? mac_bignum_operation_result_i[WLEN/2-1:0] :
+                                            mac_bignum_operation_result_i[WLEN-1:WLEN/2];
+
+      assign mac_bignum_rf_wr_data[WLEN/2-1:0] = mac_bignum_operation_result_i[WLEN/2-1:0];
+    end
+  endgenerate
 
   // Bignum register file write MUX. Depending on the data source, integrity bits do or don't have
   // to be appended; see comments on the "Base register file write MUX" for details.

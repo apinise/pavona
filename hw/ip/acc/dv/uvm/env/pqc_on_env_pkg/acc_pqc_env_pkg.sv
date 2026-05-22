@@ -5,5 +5,6 @@
 package acc_pqc_env_pkg;
   // Enable PQC mode for the TB and DUT
   parameter bit AccPQCEn = 1;
+  parameter bit AccWhiteningEn = 1;
 
 endpackage

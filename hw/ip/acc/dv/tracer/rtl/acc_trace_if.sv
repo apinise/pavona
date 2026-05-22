@@ -33,7 +33,8 @@ interface acc_trace_if
 #(
   parameter int ImemAddrWidth = 15,
   parameter int DmemAddrWidth = 15,
-  parameter bit AccPQCEn     = acc_pqc_env_pkg::AccPQCEn,
+  parameter bit AccPQCEn      = acc_pqc_env_pkg::AccPQCEn,
+  parameter bit AccWhiteningEn = acc_pqc_env_pkg::AccWhiteningEn,
   parameter acc_pkg::regfile_e RegFile = acc_pkg::RegFileFF
 )(
   input logic clk_i,
@@ -269,7 +270,15 @@ interface acc_trace_if
           u_acc_alu_bignum.mod_wr_en[i_word] ? u_acc_alu_bignum.mod_intg_d[i_word*39+:32] :
                                                 u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_read_data[IsprMod][i_word*32+:32] = u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
-        assign ispr_write_data[IsprAcc][i_word*32+:32] = u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+        if (AccWhiteningEn) begin : gen_acc_ispr_wr_whitened_data
+          assign ispr_write_data[IsprAcc][i_word*32+:32] =
+              u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.acc_intg_d[i_word*39+:32] :
+              gen_whitening_mac.u_acc_mac_bignum_whitening.acc_intg_d[i_word*39+:32];
+        end else begin : gen_acc_ispr_wr_data
+          assign ispr_write_data[IsprAcc][i_word*32+:32] =
+              u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+        end
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] =
           u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_wr_en[0][i_word] ?
           u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_d[0][i_word*39+:32] :
@@ -282,8 +291,15 @@ interface acc_trace_if
           u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[1][i_word*39+:32];
         assign ispr_read_data[IsprKmacMsg1][i_word*32+:32] =
           u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[1][i_word*39+:32];
-        assign ispr_write_data[IsprAccH][i_word*32+:32] =
-          u_acc_mac_bignum.gen_acch_wr_en.acch_intg_d[i_word*39+:32];
+        if (AccWhiteningEn) begin : gen_acch_ispr_wr_whitened_data
+          assign ispr_write_data[IsprAccH][i_word*32+:32] =
+              u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.gen_acch_wr_en.acch_intg_d[i_word*39+:32] :
+              gen_whitening_mac.u_acc_mac_bignum_whitening.gen_acch_wr_en.acch_intg_d[i_word*39+:32];
+        end else begin : gen_acch_ispr_wr_data
+          assign ispr_write_data[IsprAccH][i_word*32+:32] =
+              u_acc_mac_bignum.gen_acch_wr_en.acch_intg_d[i_word*39+:32];
+        end
       end
     end else begin : gen_ispr_data
       for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_mod_and_acc_words
@@ -333,9 +349,21 @@ interface acc_trace_if
       // ACCH
       assign ispr_write[IsprAccH]     = u_acc_mac_bignum.gen_acch_wr_en.acch_en & ~ispr_init;
       assign ispr_read[IsprAccH]      = (any_ispr_read & (ispr_addr == IsprAccH)) | mac_bignum_en;
-      assign ispr_read_data[IsprAccH] =
-          (any_ispr_read & (ispr_addr == IsprAccH)) ? u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
-                                                      u_acc_mac_bignum.gen_acch_blanker.acch_blanked;
+      if (AccWhiteningEn) begin : gen_ispr_read_acch_whitening_data
+        assign ispr_read_data[IsprAccH] =
+          (any_ispr_read & (ispr_addr == IsprAccH)) ?
+            (u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
+              gen_whitening_mac.u_acc_mac_bignum_whitening.gen_acch_reg.acch_no_intg_q) :
+            (u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.gen_acch_blanker.acch_blanked:
+              gen_whitening_mac.u_acc_mac_bignum_whitening.gen_acch_blanker.acch_blanked);
+      end else begin : gen_ispr_read_acch_data
+        assign ispr_read_data[IsprAccH] =
+            (any_ispr_read & (ispr_addr == IsprAccH)) ?
+              u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
+              u_acc_mac_bignum.gen_acch_blanker.acch_blanked;
+      end
     end else begin : gen_ispr_read_write_blank
       // Need to drive unused signals for verilator linting
       // KMAC MSG
@@ -382,9 +410,22 @@ interface acc_trace_if
   assign ispr_read[IsprAcc] = (any_ispr_read & (ispr_addr == IsprAcc)) | mac_bignum_en;
   // For ISPR reads look at the ACC flops directly. For other ACC reads look at the `acc_blanked`
   // signal in order to read ACC as 0 for the BN.MULQACC.Z instruction variant.
-  assign ispr_read_data[IsprAcc] =
-      (any_ispr_read & (ispr_addr == IsprAcc)) ? u_acc_mac_bignum.acc_no_intg_q  :
-                                                 u_acc_mac_bignum.acc_blanked;
+  generate
+    if (AccWhiteningEn) begin : gen_ispr_read_acc_whitening_data
+      assign ispr_read_data[IsprAcc] =
+          (any_ispr_read & (ispr_addr == IsprAcc)) ?
+            (u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.acc_no_intg_q :
+              gen_whitening_mac.u_acc_mac_bignum_whitening.acc_no_intg_q) :
+            (u_acc_controller.gen_whitening_nets.whitening_mac_sel ?
+              u_acc_mac_bignum.acc_blanked:
+              gen_whitening_mac.u_acc_mac_bignum_whitening.acc_blanked);
+    end else begin : gen_ispr_read_acc_data
+      assign ispr_read_data[IsprAcc] =
+          (any_ispr_read & (ispr_addr == IsprAcc)) ? u_acc_mac_bignum.acc_no_intg_q  :
+                                                    u_acc_mac_bignum.acc_blanked;
+    end
+  endgenerate
 
   assign ispr_write[IsprRnd] = 1'b0;
   assign ispr_write_data[IsprRnd] = '0;

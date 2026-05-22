@@ -40,6 +40,7 @@ filesets:
       - rtl/acc_digest_mux.sv
       - rtl/acc_alu_bignum.sv
       - rtl/acc_mac_bignum.sv
+      - rtl/acc_mac_regs.sv
       - rtl/bn_vec_core/unified_mul.sv
       - rtl/bn_vec_core/acc_bignum_mul.sv
       - rtl/bn_vec_core/buffer_bit.sv

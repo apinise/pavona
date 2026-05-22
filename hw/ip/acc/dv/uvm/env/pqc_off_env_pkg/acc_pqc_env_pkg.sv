@@ -5,5 +5,6 @@
 package acc_pqc_env_pkg;
   // Disable PQC mode for the TB and DUT
   parameter bit AccPQCEn = 0;
+  parameter bit AccWhiteningEn = 0;
 
 endpackage
