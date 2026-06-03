@@ -180,7 +180,7 @@
               desc:
                 '''
                 Secure boot chicken bit. Secure boot is enabled iff this is
-                set to kMultiBitBool32True. OTBN is not loaded with any code
+                set to kMultiBitBool32True. ACC is not loaded with any code
                 for any other values.
                 '''
               isdigest: false

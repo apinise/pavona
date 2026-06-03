@@ -11,10 +11,10 @@ import os
 import sys
 from typing import Dict, List
 
-# Ensure that the OpenTitan utils directory is on sys.path. This will allow us
+# Ensure that the Pavona utils directory is on sys.path. This will allow us
 # to import serialize.parse_helpers.
-_OTBN_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '../..'))
-_OT_DIR = os.path.normpath(os.path.join(_OTBN_DIR, '../../..'))
+_ACC_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '../..'))
+_OT_DIR = os.path.normpath(os.path.join(_ACC_DIR, '../../..'))
 _OT_UTIL_DIR = os.path.join(_OT_DIR, 'util')
 sys.path.append(_OT_UTIL_DIR)
 from serialize.parse_helpers import check_keys, check_str, check_int  # noqa: E402

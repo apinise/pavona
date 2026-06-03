@@ -73,7 +73,7 @@ typedef enum sc_keymgr_dpe_dest {
   kScKeymgrDestNone = 0,
   kScKeymgrDestAes = 1,
   kScKeymgrDestKmac = 2,
-  kScKeymgrDestOtbn = 3,
+  kScKeymgrDestAcc = 3,
 } sc_keymgr_dpe_dest_t;
 
 /**
@@ -205,7 +205,7 @@ typedef struct sc_keymgr_dpe_ecc_key {
   /**
    * Pointer to the keymgr diversifier that is used when actuating the keymgr's
    * "output-generate" function to generate another ECC keygen seed that will be
-   * sideloaded to OTBN.
+   * sideloaded to ACC.
    */
   const sc_keymgr_dpe_diversification_t *keymgr_diversifier;
   /**
@@ -245,9 +245,9 @@ OT_WARN_UNUSED_RESULT
 rom_error_t sc_keymgr_dpe_sideload_clear(sc_keymgr_dpe_dest_t destination);
 
 /**
- * Generate a key manager key and sideload to the OTBN block.
+ * Generate a key manager key and sideload to the ACC block.
  *
- * Calls the key manager to sideload a key into the OTBN hardware block and
+ * Calls the key manager to sideload a key into the ACC hardware block and
  * waits until the operation is complete before returning. Can sideload an
  * attestation or sealing key based on user input.
  *
@@ -259,12 +259,12 @@ OT_WARN_UNUSED_RESULT
 inline rom_error_t sc_keymgr_dpe_generate_key_acc(
     sc_keymgr_dpe_key_type_t key_type,
     sc_keymgr_dpe_diversification_t diversification) {
-  return sc_keymgr_dpe_generate_key(kScKeymgrDestOtbn, key_type,
+  return sc_keymgr_dpe_generate_key(kScKeymgrDestAcc, key_type,
                                     diversification);
 }
 
 /**
- * Clear OTBN's sideloaded key slot.
+ * Clear ACC's sideloaded key slot.
  *
  * The entropy complex needs to be initialized before calling this function, so
  * that keymgr can use it to clear the slot.
@@ -273,7 +273,7 @@ inline rom_error_t sc_keymgr_dpe_generate_key_acc(
  */
 OT_WARN_UNUSED_RESULT
 inline rom_error_t sc_keymgr_dpe_sideload_clear_acc(void) {
-  return sc_keymgr_dpe_sideload_clear(kScKeymgrDestOtbn);
+  return sc_keymgr_dpe_sideload_clear(kScKeymgrDestAcc);
 }
 
 /**

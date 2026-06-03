@@ -213,7 +213,7 @@ rom_error_t sc_keymgr_dpe_generate_key(
 
   uint32_t ctrl = 0;
 
-  // Select OTBN as the destination.
+  // Select ACC as the destination.
   ctrl = bitfield_field32_write(0, KEYMGR_DPE_CONTROL_SHADOWED_DEST_SEL_FIELD,
                                 destination);
 

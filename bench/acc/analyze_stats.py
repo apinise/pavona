@@ -193,7 +193,7 @@ def write_csv(samples, csvpath):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Analyze and compare collected execution stats for OTBN programs.',
+        description='Analyze and compare collected execution stats for ACC programs.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='The number of directories determines the type of analysis.\n'
         '- 1 directory: print aggregate statistics for the sample.\n'
