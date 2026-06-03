@@ -1,8 +1,9 @@
 /* Copyright lowRISC contributors (OpenTitan project). */
+/* Copyright zeroRISC Inc. */
 /* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
-    OBTN.CHAR_BEQ FI Penetration Test
+    ACC.CHAR_BEQ FI Penetration Test
 */
 .section .text.start
   /* x1=counter, x2&x3=BEQ parameters. */
