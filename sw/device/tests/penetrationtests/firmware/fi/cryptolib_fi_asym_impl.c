@@ -667,8 +667,6 @@ status_t cryptolib_fi_p256_ecdh_impl(
   uint32_t private_keyblob[kPentestP256MaskedPrivateKeyWords * 2];
   memset(private_keyblob, 0, sizeof(private_keyblob));
   memcpy(private_keyblob, uj_input.private_key, P256_CMD_BYTES);
-  memcpy(private_keyblob + kPentestP256MaskedPrivateKeyWords, 0,
-         P256_CMD_BYTES);
   otcrypto_blinded_key_t private_key = {
       .config =
           {
@@ -893,8 +891,6 @@ status_t cryptolib_fi_p384_ecdh_impl(
   uint32_t private_keyblob[kPentestP384MaskedPrivateKeyWords * 2];
   memset(private_keyblob, 0, sizeof(private_keyblob));
   memcpy(private_keyblob, uj_input.private_key, P384_CMD_BYTES);
-  memcpy(private_keyblob + kPentestP384MaskedPrivateKeyWords, 0,
-         P384_CMD_BYTES);
   otcrypto_blinded_key_t private_key = {
       .config =
           {
