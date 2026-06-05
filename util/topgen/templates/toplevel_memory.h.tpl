@@ -48,6 +48,28 @@ header_suffix = (top["name"] + addr_space_suffix).upper()
  */
 #define ${size_bytes_name} ${hex_size_bytes}
 
+## TODO: we need a more holistic approach to declare memories and IPs sitting in the
+## CTN address space. For now, we create the base and offset for the CTN SRAM with this workaround.
+% if inst_name == "soc_proxy" and if_name == "ctn":
+<%
+    hex_base_addr = "0x{:X}".format(region.base_addr + 0x01000000)
+    hex_size_bytes = "0x{:X}".format(0x00100000)
+
+    base_addr_name = region.base_addr_name().as_c_define().replace('CTN', 'RAM_CTN')
+    size_bytes_name = region.size_bytes_name().as_c_define().replace('CTN', 'RAM_CTN')
+
+%>\
+/**
+ * Memory base for for ram_ctn in top ${top["name"]}.
+ */
+#define ${base_addr_name} ${hex_base_addr}
+
+/**
+ * Memory size for ram_ctn in top ${top["name"]}.
+ */
+#define ${size_bytes_name} ${hex_size_bytes}
+
+% endif
 % endfor
 
 % for (inst_name, if_name), region in helper.devices(addr_space):

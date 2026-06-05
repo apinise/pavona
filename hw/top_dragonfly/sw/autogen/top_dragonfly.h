@@ -888,6 +888,16 @@ extern "C" {
 #define TOP_DRAGONFLY_SOC_PROXY_CTN_SIZE_BYTES 0x80000000u
 
 /**
+ * Memory base address for ram_ctn in top dragonfly.
+ */
+#define TOP_DRAGONFLY_SOC_PROXY_RAM_CTN_BASE_ADDR 0x41000000u
+
+/**
+ * Memory size for ram_ctn in top dragonfly.
+ */
+#define TOP_DRAGONFLY_SOC_PROXY_RAM_CTN_SIZE_BYTES 0x100000u
+
+/**
  * Memory base address for ram memory on sram_ctrl_ret_aon in top dragonfly.
  */
 #define TOP_DRAGONFLY_SRAM_CTRL_RET_AON_RAM_BASE_ADDR 0x30600000u

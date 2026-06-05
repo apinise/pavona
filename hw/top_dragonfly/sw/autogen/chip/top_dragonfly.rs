@@ -686,6 +686,12 @@ pub const SOC_PROXY_CTN_BASE_ADDR: usize = 0x40000000;
 /// Memory size for ctn memory on soc_proxy in top dragonfly.
 pub const SOC_PROXY_CTN_SIZE_BYTES: usize = 0x80000000;
 
+/// Memory base address for ram_ctn in top dragonfly.
+pub const SOC_PROXY_RAM_CTN_BASE_ADDR: usize = 0x41000000;
+
+/// Memory size for ram_ctn in top dragonfly.
+pub const SOC_PROXY_RAM_CTN_SIZE_BYTES: usize = 0x100000;
+
 /// Memory base address for ram memory on sram_ctrl_ret_aon in top dragonfly.
 pub const SRAM_CTRL_RET_AON_RAM_BASE_ADDR: usize = 0x30600000;
 
