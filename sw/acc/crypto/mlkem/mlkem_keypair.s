@@ -111,6 +111,9 @@ indcpa_keypair:
   addi  a1, zero, 32
   jal   x1, keccak_send_message
   addi  a0, fp, STACK_BUF
+  /* Initialize; keccak_send_message reads a full WDR. */
+  li    t0, 31
+  bn.sid  t0, 0(a0)
   sw    x14, 0(a0)
   addi  a1, zero, 1
   jal   x1, keccak_send_message
@@ -127,6 +130,9 @@ indcpa_keypair:
   li   a3, STACK_NONCE
   add  a3, a3, fp
   li   a2, 0
+  /* Initialize; keccak_send_message reads a full WDR. */
+  li   t1, 31
+  bn.sid  t1, 0(a3)
   /* K iterations */
   LOOP x14, 6
     add  t1, fp, a5
@@ -217,6 +223,9 @@ indcpa_keypair:
   li   a3, STACK_NONCE
   add  a3, a3, fp
   addi a2, x14, 0
+  /* Initialize; keccak_send_message reads a full WDR. */
+  li   t1, 31
+  bn.sid  t1, 0(a3)
   /* K iterations */
   LOOP x14, 6
     add  t1, fp, a5
