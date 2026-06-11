@@ -695,7 +695,8 @@ package acc_pkg;
   typedef enum logic [StateEagerWidth-1:0] {
     StDigestWait   = 4'b1010,
     StDigestShare0 = 4'b0111,
-    StDigestShare1 = 4'b1100
+    StDigestShare1 = 4'b1100,
+    StDigestEagerWait = 4'b1001
   } kmac_eager_state_e;
 
   // Encoding generated with:

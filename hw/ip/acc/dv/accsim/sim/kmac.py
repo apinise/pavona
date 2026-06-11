@@ -129,6 +129,7 @@ class KmacBlock:
         self._digest1_ready_next = False
         self._digest0_read = False
         self._digest1_read = False
+        self._pending_read = False
         self._unmasked_digest = bytes()
         self._apply_mask = False
         self._finished_digest0 = False
@@ -137,7 +138,6 @@ class KmacBlock:
         self._shift_digest_reg = False
         self._new_permutation = False
         self._digest_request_ctr = 0
-        self._skip_digest_shift_cycle = False
         self._kmac_undersized_err = False
         self._kmac_oversized_err = False
 
@@ -195,7 +195,6 @@ class KmacBlock:
         self._shift_digest_reg = False
         self._new_permutation = False
         self._digest_request_ctr = 0
-        self._skip_digest_shift_cycle = False
         self._kmac_undersized_err = False
 
     def set_configuration(self, mode: int, strength: int, msg_len: int, masked_mode: bool) -> None:
@@ -222,7 +221,8 @@ class KmacBlock:
         return self._app_intf_ready
 
     def get_done(self) -> int:
-        return int(self.digest0_ready())
+        return int((self._digest0_ready and self._digest0_read) or
+                   (self._digest1_ready and self._digest1_read))
 
     def message_done(self) -> None:
         '''Indicate that the message input is done.'''
@@ -295,6 +295,8 @@ class KmacBlock:
         # Check if there is an undersized message at this point
         digest_err = self.digest_req_err()
 
+        self._pending_read = True
+
         # If there is an undersized error we inject a "last" to the message request
         # to prevent stalling and raise an error flag to the status reg
         if digest_err and not self._kmac_undersized_err:
@@ -331,6 +333,8 @@ class KmacBlock:
         # This helper function is executed during a digest wsrr insn
         # Check if there is an undersized message at this point
         digest_err = self.digest_req_err()
+
+        self._pending_read = True
 
         # If there is an undersized error we inject a "last" to the message request
         # to prevent stalling and raise an error flag to the status reg
@@ -834,14 +838,8 @@ class KmacBlock:
                 self._digest_request_ctr = 0
                 self._digest0_ready_next = True
                 self._digest1_ready_next = True
-        elif self._new_permutation:
+        elif self._new_permutation and self._pending_read:
             if self._digest_request_ctr < self._NEW_PERMUTATION_LATENCY:
-                if self._skip_digest_shift_cycle:
-                    self._skip_digest_shift_cycle = False
-                    # model the one cycle the next permutation is faster
-                    # if we do not need to squeeze remaining bits from
-                    # the digest
-                    self._digest_request_ctr += 1
                 self._digest_request_ctr += 1
                 self._digest0_ready_next = False
                 self._digest1_ready_next = False
@@ -875,18 +873,16 @@ class KmacBlock:
                 self._leftover_digest_bytes = 0
                 self._shift_digest_reg = True
                 self._digest_request_ctr += 1
-                # For the next squeeze request, we do not have the latency
-                # for shifting the remaining bits from the state.
-                self._skip_digest_shift_cycle = True
             else:
                 if self._mode in [self._MODE_SHAKE, self. _MODE_CSHAKE]:
                     # For XOF modes, eagerly trigger a new permutation.
                     self._new_permutation = True
-                    self._digest_request_ctr += 1
                     self._leftover_digest_bytes += max(self._rate_bytes - self._read_offset, 0)
                     self._read_offset = 0
             self._digest0_ready_next = False
             self._digest1_ready_next = False
+
+        self._pending_read = False
 
         # Either step the core or check if we can start it.
         if self._core_is_busy():

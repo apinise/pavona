@@ -942,21 +942,43 @@ generate
   // Consecutive reads from the same digest share are legal but will not trigger a
   // new digest to be shifted from KMAC.
 
+  // If the next eager KMAC refresh will trigger a manual run we will wait for an
+  // instruction call to read. This lowers the overhead of incorectly requesting a
+  // new digest and needing to wait for Keccak to finish before the next transaction.
+
+  logic [2:0] digest_word_idx_q, digest_word_idx_d;
+  logic reset_digest_word;
+  logic [2:0] max_digest_words;
+  logic [1:0] permutation_ctr;
+  logic incr_permutation_ctr, reset_permutation_ctr;
+  logic valid_eager;
+  logic clear_eager_digest;
+
   kmac_eager_state_e eager_state_d, eager_state_q;
 
   always_comb begin : kmac_eager_next_fsm
     // Default assignments
     eager_state_d = eager_state_q;
     kmac_digest_rd_next = 1'b0;
+    incr_permutation_ctr = 1'b0;
+    clear_eager_digest = 1'b0;
+    reset_digest_word = 1'b0;
 
     unique case (eager_state_q)
       StDigestWait: begin
         // Determine if there is a read from digest 0 or digest 1
         if (kmac_digest_valid_q && ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0]) begin
           if (~kmac_cfg_mask_mode) begin
-            // When in unmasked mode we can immediately refresh
-            kmac_digest_rd_next = 1'b1;
-            eager_state_d = StDigestWait;
+            // When in unmasked mode we can immediately refresh unless it triggers a manual run
+            if (valid_eager) begin
+              eager_state_d = StDigestWait;
+              kmac_digest_rd_next = 1'b1;
+            end else begin
+              // Go to the StDigestEagerWait state until we explicitely request a new read
+              eager_state_d = StDigestEagerWait;
+              incr_permutation_ctr = 1'b1;
+              clear_eager_digest = 1'b1;
+            end
           end else begin
             eager_state_d = StDigestShare0;
           end
@@ -964,20 +986,116 @@ generate
           eager_state_d = StDigestShare1;
         end
       end
+
+      // We have already read from DigestShare0, now we wait for a read from DigestShare1
       StDigestShare0: begin
         if (kmac_digest_valid_q && ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1]) begin
-          eager_state_d = StDigestWait;
-          kmac_digest_rd_next = 1'b1;
+          if (valid_eager) begin
+            eager_state_d = StDigestWait;
+            kmac_digest_rd_next = 1'b1;
+          end else begin
+              // Go to the StDigestEagerWait state until we explicitely request a new read
+            eager_state_d = StDigestEagerWait;
+            incr_permutation_ctr = 1'b1;
+            clear_eager_digest = 1'b1;
+          end
         end
       end
+
+      // We have already read from DigestShare1, now we wait for a read from DigestShare0
       StDigestShare1: begin
         if (kmac_digest_valid_q && ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0]) begin
-          eager_state_d = StDigestWait;
+          if (valid_eager) begin
+            eager_state_d = StDigestWait;
+            kmac_digest_rd_next = 1'b1;
+          end else begin
+              // Go to the StDigestEagerWait state until we explicitely request a new read
+            eager_state_d = StDigestEagerWait;
+            incr_permutation_ctr = 1'b1;
+            clear_eager_digest = 1'b1;
+          end
+        end
+      end
+
+      // We have exhausted the Keccak state and will not request a manual run until we are
+      // guarenteed to need more
+      StDigestEagerWait: begin
+        if (ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0]) begin
+          // Go to DigestShare0 or Wait state depending on masked configuration
+          if (~kmac_cfg_mask_mode) begin
+            eager_state_d = StDigestWait;
+          end else begin
+            eager_state_d = StDigestShare0;
+          end
+          // Trigger the next read and reset the digest word count
           kmac_digest_rd_next = 1'b1;
+          reset_digest_word = 1'b1;
+        end else if (ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1]) begin
+          eager_state_d = StDigestShare1;
+          // Trigger the next read and reset the digest word count
+          kmac_digest_rd_next = 1'b1;
+          reset_digest_word = 1'b1;
         end
       end
       default: eager_state_d = StDigestWait;
     endcase
+  end
+
+  // Comb component of counter for the number of digest reads from the current Keccak State
+  always_comb begin
+    digest_word_idx_d = digest_word_idx_q;
+    if (kmac_app_rsp_i.done) begin
+      digest_word_idx_d = digest_word_idx_q + 1'b1;
+    end
+  end
+
+  // Flop component of counter for the number of digest reads from the current Keccak State
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) digest_word_idx_q <= '0;
+    else if (kmac_new_cfg_q || reset_digest_word) begin
+      digest_word_idx_q <= '0;
+    end else begin
+      digest_word_idx_q <= digest_word_idx_d;
+    end
+  end
+
+  // Logic to set the valid_eager signal to determine if we can eager trigger
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      valid_eager <= 1'b0;
+      reset_permutation_ctr <= 1'b0;
+    end else begin
+      // If it is the 4th permutation from KMAC there is a fifth digest word available
+      // in the KMAC output buffer before needing to trigger a manual run
+      if (digest_word_idx_d == max_digest_words && permutation_ctr == 2'h3) begin
+        valid_eager <= 1'b1;
+        reset_permutation_ctr <= 1'b0;
+      // For all other permutations we need to trigger a new manual run
+      end else if (digest_word_idx_d == max_digest_words) begin
+        valid_eager <= 1'b0;
+        reset_permutation_ctr <= 1'b0;
+      end else begin
+        // Digest word idx will only be greater when the permutation_ctr == 2'h3
+        if (digest_word_idx_d > max_digest_words) begin
+          valid_eager <= 1'b0;
+          reset_permutation_ctr <= 1'b1;
+        end else begin
+          valid_eager <= 1'b1;
+          reset_permutation_ctr <= 1'b0;
+        end
+      end
+    end
+  end
+
+  // Control the permutation index for keccak states and XOFs with ACC
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      permutation_ctr <= 2'h0;
+    end else if (reset_permutation_ctr || kmac_new_cfg_q) begin
+      permutation_ctr <= 2'h0;
+    end else if (incr_permutation_ctr) begin
+      permutation_ctr <= permutation_ctr + 1'b1;
+    end
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -994,7 +1112,7 @@ generate
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       kmac_digest_valid_q <= 1'b0;
-    end else if (kmac_digest_rd_next || kmac_new_cfg_q) begin
+    end else if (kmac_digest_rd_next || kmac_new_cfg_q || clear_eager_digest) begin
       kmac_digest_valid_q <= 1'b0;
     end else if (kmac_app_rsp_i.done) begin
       kmac_digest_valid_q <= 1'b1;
@@ -1094,6 +1212,10 @@ generate
                                     | kmac_msg_ctr_err[1];
 
   assign kmac_ispr = sec_wipe_kmac_regs_urnd_i | ispr_init_i;
+
+  always_comb begin
+    max_digest_words = kmac_pkg::compute_max_digest(kmac_cfg_keccak_strength);
+  end
 
   // We speculatively fetch the next digest but this is illegal for non XOF
   // modes. As such SHA will need to limit the speculative fetch based on strength.
@@ -1470,7 +1592,7 @@ generate
   assign kmac_app_req_o.last  = kmac_app_last;
 
   // If we request an additional digest send a next to KMAC
-  assign kmac_app_req_o.next  = kmac_digest_valid_o & kmac_digest_rd_next & kmac_next_sha;
+  assign kmac_app_req_o.next  = kmac_digest_rd_next & kmac_next_sha;
 
   // Hold will remain active for duration of transaction unless an internal error occurs
   assign kmac_app_req_o.hold  = kmac_app_active;
