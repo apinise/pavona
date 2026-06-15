@@ -1624,7 +1624,11 @@ generate
   // The FIFO should not be in a flush cycle
   always_comb begin
     kmac_msg_req_err = 1'b0;
-    if ((ispr_addr_i == IsprKmacDigest0 | ispr_addr_i == IsprKmacDigest1) && kmac_app_active) begin
+    if (
+      (ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0] |
+       ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1]) &&
+       kmac_app_active
+    ) begin
       kmac_msg_req_err = !(kmac_msg_pending_write_o[0] | kmac_msg_pending_write_o[1]) &&
                          !(kmac_msg_fifos_valid) &&
                          !kmac_msg_fifo_flush &&
