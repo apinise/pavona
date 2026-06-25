@@ -49,7 +49,7 @@ _rom_digest_size = 32;
 _chip_info_start = ORIGIN(test_second_rom) + LENGTH(test_second_rom) - _rom_digest_size - _chip_info_size;
 
 /* DV Log offset (has to be different to other boot stages). */
-_dv_log_offset = 0x0;
+_dv_log_offset = 0x8000;
 
 /**
  * We define an entry point only for documentation purposes (and to stop LLD

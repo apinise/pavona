@@ -439,7 +439,7 @@ module tb;
 `endif
           .key   (top_dragonfly_rnd_cnst_pkg::RndCnstRomCtrl1ScrKey),
           .nonce (top_dragonfly_rnd_cnst_pkg::RndCnstRomCtrl1ScrNonce),
-          .system_base_addr    (top_dragonfly_pkg::TOP_DRAGONFLY_ROM_CTRL0_ROM_BASE_ADDR));
+          .system_base_addr    (top_dragonfly_pkg::TOP_DRAGONFLY_ROM_CTRL1_ROM_BASE_ADDR));
       m_mem_bkdr_util[Rom1] = rom1;
       `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[Rom1], `ROM1_MEM_HIER)
 

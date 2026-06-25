@@ -32,7 +32,7 @@ ASSERT((_rom_ext_virtual_size <= (LENGTH(ram_ctn))),
   "Error: rom ext is bigger than slot.");
 
 /* DV Log offset (has to be different to other boot stages). */
-_dv_log_offset = 0x0;
+_dv_log_offset = 0x8000;
 
 /**
  * This symbol is used as a jump target when an error is detected by the
