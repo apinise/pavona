@@ -144,8 +144,8 @@ module tb;
   `ASSERT(MatchingPQC_A, acc_pqc_env_pkg::AccPQCEn == dut.AccPQCEn, clk, !rst_n)
 
   bind dut.u_acc_core acc_trace_if #(
-    .ImemAddrWidth (ImemAddrWidth),
-    .DmemAddrWidth (DmemAddrWidth)
+    .ImemAddrWidth (acc_pkg::AccImemAddrWidth),
+    .DmemAddrWidth (acc_pkg::AccDmemAddrWidth)
   ) i_acc_trace_if (.*);
 
   assign dut.u_acc_core.i_acc_trace_if.scramble_state_err_i = dut.acc_scramble_state_error;
