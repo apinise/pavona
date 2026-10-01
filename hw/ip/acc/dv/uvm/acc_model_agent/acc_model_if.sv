@@ -9,12 +9,7 @@
 
 interface acc_model_if
   import keymgr_pkg::acc_key_req_t;
-#(
-  // Size of the instruction memory, in bytes
-  parameter int ImemSizeByte = 4096,
-
-  localparam int ImemAddrWidth = prim_util_pkg::vbits(ImemSizeByte)
-) (
+(
   input logic clk_i,
   input logic rst_ni,
   input acc_key_req_t keymgr_key_i
@@ -28,7 +23,7 @@ interface acc_model_if
   // Outputs from DUT
   bit                       err;          // Something went wrong
   bit [31:0]                stop_pc;      // PC at end of operation
-  acc_pkg::err_bits_t      err_bits;     // Error bits; updated when STATUS switches to idle
+  acc_pkg::err_bits_t       err_bits;     // Error bits; updated when STATUS switches to idle
 
   // Mirrored registers
   bit [7:0]                 status;       // STATUS register

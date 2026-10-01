@@ -19,9 +19,7 @@ class acc_model_agent extends dv_base_agent #(
     `DV_CHECK_FATAL(!cfg.is_active)
 
     // get acc_model_if handle
-    if (!uvm_config_db#(
-                        virtual acc_model_if#(.ImemSizeByte(acc_reg_pkg::ACC_IMEM_SIZE))
-                       )::get(this, "", "vif", cfg.vif)) begin
+    if (!uvm_config_db#(virtual acc_model_if)::get(this, "", "vif", cfg.vif)) begin
       `uvm_fatal(`gfn, "failed to get acc_model_if handle from uvm_config_db")
     end
   endfunction

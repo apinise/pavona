@@ -5,7 +5,7 @@
 class acc_model_agent_cfg extends dv_base_agent_cfg;
 
   // interface handle used by driver, monitor & the sequencer, via cfg handle
-  virtual acc_model_if#(.ImemSizeByte(acc_reg_pkg::ACC_IMEM_SIZE)) vif;
+  virtual acc_model_if vif;
 
   `uvm_object_utils_begin(acc_model_agent_cfg)
   `uvm_object_utils_end

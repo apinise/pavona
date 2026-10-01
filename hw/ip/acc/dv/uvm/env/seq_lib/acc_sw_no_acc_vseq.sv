@@ -9,18 +9,17 @@ class acc_sw_no_acc_vseq extends acc_single_vseq;
 
   `uvm_object_new
 
+  localparam uvm_reg_addr_t AccDmemTopWord = acc_pkg::AccDmemSizeByte - 4;
+
   task body();
     bit write;
-    bit [BUS_AW-1:0] addr;
-    bit [BUS_DW-1:0] data;
-    bit [BUS_DW-1:0] rdata;
-    logic [127:0]    key;
-    logic [63:0]     nonce;
-    bit [31:0] err_val = 32'd1 << 21;
-    bit [14:0] offset;
-
-    localparam int unsigned ACC_TOTAL_DMEM = acc_reg_pkg::ACC_DMEM_SIZE
-                                              + acc_pkg::DmemScratchSizeByte;
+    bit [BUS_AW-1:0]                    addr;
+    bit [BUS_DW-1:0]                    data;
+    bit [BUS_DW-1:0]                    rdata;
+    logic [127:0]                       key;
+    logic [63:0]                        nonce;
+    bit [31:0]                          err_val = 32'd1 << 21;
+    bit [acc_pkg::AccDmemAddrWidth-1:0] offset;
 
     key = cfg.get_dmem_key();
     nonce = cfg.get_dmem_nonce();
@@ -29,8 +28,8 @@ class acc_sw_no_acc_vseq extends acc_single_vseq;
     `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(data, $countones(data) != BUS_DW;)
     `DV_CHECK_STD_RANDOMIZE_FATAL(write)
     `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(offset, offset dist {acc_reg_pkg::ACC_DMEM_SIZE :/ 5,
-                                          [acc_reg_pkg::ACC_DMEM_SIZE:ACC_TOTAL_DMEM] :/ 1,
-                                          ACC_TOTAL_DMEM                                :/ 5};)
+                                           [acc_reg_pkg::ACC_DMEM_SIZE:AccDmemTopWord] :/ 1,
+                                            AccDmemTopWord                             :/ 5};)
     addr = cfg.ral.get_addr_from_offset(acc_reg_pkg::ACC_DMEM_OFFSET + offset);
     `uvm_info(`gfn, $sformatf("addr = %h", addr), UVM_LOW)
 
