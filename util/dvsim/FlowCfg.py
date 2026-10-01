@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import stat
 import tempfile
+from collections import Counter
 from bs4 import BeautifulSoup
 
 import hjson
@@ -610,7 +611,7 @@ class FlowCfg():
                                "Reports",
                                "index",
                                "{entry}/{entry}_index.html",
-                               embed_latest=("Latest Weekly", "all_tops_batch_weekly_sim"))
+                               embed_latest=("Latest {label}", "all_tops_batch_weekly_sim"))
 
         shutil.copy2(os.path.join(self.proj_root, 'util', 'dvsim', 'style.css'), repo_dir)
 
@@ -799,6 +800,35 @@ class FlowCfg():
                       repository, e.stderr.decode().strip() if e.stderr else "")
             raise
 
+    @staticmethod
+    def _flow_labels(flow_dirs: list) -> dict:
+        """Name each flow directory on the top-level dashboard index.
+
+        The directories are named {cfg name}_{item}_{flow}, which generates an entry
+        called "item" in the index. That works when only one batch publishes it.
+        When more than one, however, each also gets the first word of its configuration name
+        (e.g. Weekly (Dragonfly), Nightly (Egret))
+        """
+        def item(flow_dir):
+            words = flow_dir.split("_")
+            if len(words) >= 3:
+                return words[-2].capitalize()
+            else:
+                return flow_dir
+
+        shared = Counter(item(d) for d in flow_dirs)
+        labels = {}
+        for d in flow_dirs:
+            label = item(d)
+            if shared[label] > 1:
+                title = d.split("_")[:-2]
+                # We don't want generic words in the title
+                filtered_words = [w for w in title if w not in ("tops", "batch")]
+                cfg = " ".join(w.capitalize() for w in filtered_words or title)
+                label = f"{label} ({cfg})"
+            labels[d] = label
+        return labels
+
     def _write_index_html(self, repo_dir: str, title: str, filename: str,
                           link_template: str, max_entries: int = None, embed_latest: tuple = None):
         """Regenerate an index html file from the subdirectories of repo_dir.
@@ -857,21 +887,22 @@ class FlowCfg():
         soup = BeautifulSoup(html, 'html.parser')
         tbody = soup.find('tbody')
 
+        labels = self._flow_labels(entries) if filename == "index" else {}
         for entry in entries:
             tr = soup.new_tag('tr')
             td = soup.new_tag('td')
             a = soup.new_tag('a', href=link_for(entry))
-            if filename == "index":
-                testname = entry.split("_")[-2].capitalize()
-                a.string = f"{testname} DV regressions"
-            else:
-                a.string = entry
+            a.string = labels.get(entry, entry)
             td.append(a)
             tr.append(td)
             tbody.append(tr)
 
         if embed_latest is not None:
-            self._embed_latest_table(soup, repo_dir, link_template, embed_latest)
+            # The label is set to differentiate two runs with the same item
+            title, latest = embed_latest
+            label = labels.get(latest) or self._flow_labels([latest])[latest]
+            self._embed_latest_table(soup, repo_dir, link_template,
+                                     (title.format(label=label), latest))
 
         with open(filepath, 'w') as f:
             f.write(str(soup))
