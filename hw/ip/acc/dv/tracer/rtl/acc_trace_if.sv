@@ -31,9 +31,9 @@
  */
 interface acc_trace_if
 #(
-  parameter int ImemAddrWidth = 15,
-  parameter int DmemAddrWidth = 15,
-  parameter bit AccPQCEn     = acc_pqc_env_pkg::AccPQCEn,
+  parameter int ImemAddrWidth = acc_pkg::AccImemAddrWidth,
+  parameter int DmemAddrWidth = acc_pkg::AccDmemAddrWidth,
+  parameter bit AccPQCEn      = acc_pqc_env_pkg::AccPQCEn,
   parameter acc_pkg::regfile_e RegFile = acc_pkg::RegFileFF
 )(
   input logic clk_i,
