@@ -141,9 +141,8 @@ package acc_env_pkg;
   // Forward declaration to allow the config to hold a scoreboard handle.
   typedef class acc_scoreboard;
 
-  localparam int unsigned ImemSizeByte = int'(acc_reg_pkg::ACC_IMEM_SIZE);
-  localparam int unsigned DmemSizeByte =
-    int'(acc_reg_pkg::ACC_DMEM_SIZE) + acc_pkg::DmemScratchSizeByte;
+  localparam int unsigned ImemSizeByte = acc_pkg::AccImemSizeByte;
+  localparam int unsigned DmemSizeByte = acc_pkg::AccDmemSizeByte;
 
   parameter int unsigned ImemIndexWidth = vbits(ImemSizeByte / 4);
   parameter int unsigned DmemIndexWidth = vbits(DmemSizeByte / 32);

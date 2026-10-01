@@ -15,14 +15,6 @@ module acc_top_sim #(
   import kmac_pkg::*;
   import keymgr_pkg::acc_key_req_t;
 
-  // Size of the instruction memory, in bytes
-  parameter int ImemSizeByte = acc_reg_pkg::ACC_IMEM_SIZE;
-  // Size of the data memory, in bytes
-  parameter int DmemSizeByte = acc_reg_pkg::ACC_DMEM_SIZE + acc_pkg::DmemScratchSizeByte;
-
-  localparam int ImemAddrWidth = prim_util_pkg::vbits(ImemSizeByte);
-  localparam int DmemAddrWidth = prim_util_pkg::vbits(DmemSizeByte);
-
   // Fixed key and nonce for scrambling in verilator environment
   localparam logic [127:0] TestScrambleKey   = 128'h48ecf6c738f0f108a5b08620695ffd4d;
   localparam logic [63:0]  TestScrambleNonce = 64'hf88c2578fa4cd123;
@@ -41,20 +33,20 @@ module acc_top_sim #(
   logic      acc_start_done = 1'b1;
 
   // Instruction memory (IMEM) signals
-  logic                     imem_req;
-  logic [ImemAddrWidth-1:0] imem_addr;
-  logic [38:0]              imem_rdata;
-  logic                     imem_rvalid;
+  logic                        imem_req;
+  logic [AccImemAddrWidth-1:0] imem_addr;
+  logic [38:0]                 imem_rdata;
+  logic                        imem_rvalid;
 
   // Data memory (DMEM) signals
-  logic                     dmem_req;
-  logic                     dmem_write;
-  logic [DmemAddrWidth-1:0] dmem_addr;
-  logic [ExtWLEN-1:0]       dmem_wdata;
-  logic [ExtWLEN-1:0]       dmem_wmask;
-  logic [ExtWLEN-1:0]       dmem_rdata;
-  logic                     dmem_rvalid;
-  logic                     dmem_rerror;
+  logic                        dmem_req;
+  logic                        dmem_write;
+  logic [AccDmemAddrWidth-1:0] dmem_addr;
+  logic [ExtWLEN-1:0]          dmem_wdata;
+  logic [ExtWLEN-1:0]          dmem_wmask;
+  logic [ExtWLEN-1:0]          dmem_rdata;
+  logic                        dmem_rvalid;
+  logic                        dmem_rerror;
 
   // Entropy Distribution Network (EDN)
   logic                     edn_rnd_req, edn_urnd_req;
@@ -99,11 +91,11 @@ module acc_top_sim #(
   logic secure_wipe_running;
 
   acc_core #(
-    .ImemSizeByte             ( ImemSizeByte ),
-    .DmemSizeByte             ( DmemSizeByte ),
-    .SecMuteUrnd              ( 1'b0         ),
-    .SecSkipUrndReseedAtStart ( 1'b0         ),
-    .AccPQCEn                 ( AccPQCEn     )
+    .ImemSizeByte             ( AccImemSizeByte ),
+    .DmemSizeByte             ( AccDmemSizeByte ),
+    .SecMuteUrnd              ( 1'b0            ),
+    .SecSkipUrndReseedAtStart ( 1'b0            ),
+    .AccPQCEn                 ( AccPQCEn        )
   ) u_acc_core (
     .clk_i                       ( IO_CLK                     ),
     .rst_ni                      ( IO_RST_N                   ),
@@ -329,7 +321,9 @@ module acc_top_sim #(
 
   assign edn_urnd_data_valid = edn_urnd_req & edn_urnd_ack;
 
-  bind acc_core acc_trace_if #(.ImemAddrWidth, .DmemAddrWidth) i_acc_trace_if (.*);
+  bind acc_core acc_trace_if #(.ImemAddrWidth(AccImemAddrWidth), .DmemAddrWidth(AccDmemAddrWidth))
+    i_acc_trace_if (.*);
+
   bind acc_core acc_tracer u_acc_tracer(.*, .acc_trace(i_acc_trace_if));
 
   assign u_acc_core.i_acc_trace_if.scramble_state_err_i = '0;
@@ -399,14 +393,14 @@ module acc_top_sim #(
     end
   end
 
-  localparam int DmemSizeWords  = DmemSizeByte / (WLEN / 8);
+  localparam int DmemSizeWords  = AccDmemSizeByte / (WLEN / 8);
   localparam int DmemIndexWidth = prim_util_pkg::vbits(DmemSizeWords);
 
   logic [DmemIndexWidth-1:0] dmem_index;
-  logic [DmemAddrWidth-DmemIndexWidth-1:0] unused_dmem_addr;
+  logic [AccDmemAddrWidth-DmemIndexWidth-1:0] unused_dmem_addr;
 
-  assign dmem_index = dmem_addr[DmemAddrWidth-1:DmemAddrWidth-DmemIndexWidth];
-  assign unused_dmem_addr = dmem_addr[DmemAddrWidth-DmemIndexWidth-1:0];
+  assign dmem_index = dmem_addr[AccDmemAddrWidth-1:AccDmemAddrWidth-DmemIndexWidth];
+  assign unused_dmem_addr = dmem_addr[AccDmemAddrWidth-DmemIndexWidth-1:0];
 
   prim_ram_1p_scr #(
     .Width              ( ExtWLEN       ),
@@ -447,13 +441,13 @@ module acc_top_sim #(
   // No integrity errors in Verilator testbench
   assign dmem_rerror = 1'b0;
 
-  localparam int ImemSizeWords  = ImemSizeByte / 4;
+  localparam int ImemSizeWords  = AccImemSizeByte / 4;
   localparam int ImemIndexWidth = prim_util_pkg::vbits(ImemSizeWords);
 
   logic [ImemIndexWidth-1:0] imem_index;
   logic [1:0] unused_imem_addr;
 
-  assign imem_index = imem_addr[ImemAddrWidth-1:2];
+  assign imem_index = imem_addr[AccImemAddrWidth-1:2];
   assign unused_imem_addr = imem_addr[1:0];
 
   prim_ram_1p_scr #(
