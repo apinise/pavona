@@ -69,6 +69,13 @@ package acc_pkg;
   // _DmemScratchSizeBytes in util/shared/mem_layout.py
   parameter int DmemScratchSizeByte = 1024;
 
+  // The total size of each memory and their respective address width to unify parameters in the RTL
+  localparam int AccImemSizeByte = int'(acc_reg_pkg::ACC_IMEM_SIZE);
+  localparam int AccDmemSizeByte = int'(acc_reg_pkg::ACC_DMEM_SIZE + DmemScratchSizeByte);
+
+  localparam int AccImemAddrWidth = prim_util_pkg::vbits(AccImemSizeByte);
+  localparam int AccDmemAddrWidth = prim_util_pkg::vbits(AccDmemSizeByte);
+
   // Toplevel constants ============================================================================
 
   // Register file implementation selection enum.
