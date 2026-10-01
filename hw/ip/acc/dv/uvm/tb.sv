@@ -46,9 +46,7 @@ module tb;
     .sideload_key (sideload_key)
   );
 
-  acc_model_if #(
-    .ImemSizeByte (ImemSizeByte)
-  ) model_if (
+  acc_model_if model_if (
     .clk_i         (clk),
     .rst_ni        (rst_n),
     .keymgr_key_i  (sideload_key)
@@ -144,8 +142,8 @@ module tb;
   `ASSERT(MatchingPQC_A, acc_pqc_env_pkg::AccPQCEn == dut.AccPQCEn, clk, !rst_n)
 
   bind dut.u_acc_core acc_trace_if #(
-    .ImemAddrWidth (acc_pkg::AccImemAddrWidth),
-    .DmemAddrWidth (acc_pkg::AccDmemAddrWidth)
+    .ImemAddrWidth (ImemAddrWidth),
+    .DmemAddrWidth (DmemAddrWidth)
   ) i_acc_trace_if (.*);
 
   assign dut.u_acc_core.i_acc_trace_if.scramble_state_err_i = dut.acc_scramble_state_error;
@@ -330,8 +328,7 @@ module tb;
     uvm_config_db#(ssctrl_vif)::set(null, "*.env", "ssctrl_vif", ssctrl_if);
     uvm_config_db#(escalate_vif)::set(null, "*.env", "escalate_vif", escalate_if);
     uvm_config_db#(intr_vif)::set(null, "*.env", "intr_vif", intr_if);
-    uvm_config_db#(virtual acc_model_if#(.ImemSizeByte(ImemSizeByte)))::set(
-      null, "*.env.model_agent", "vif", model_if);
+    uvm_config_db#(virtual acc_model_if)::set(null, "*.env.model_agent", "vif", model_if);
     uvm_config_db#(virtual key_sideload_if#(keymgr_pkg::acc_key_req_t))::set(
       null, "*.env.keymgr_sideload_agent", "vif", keymgr_if);
 
