@@ -268,20 +268,22 @@ interface acc_trace_if
         assign ispr_write_data[IsprMod][i_word*32+:32] =
           u_acc_alu_bignum.mod_wr_en[i_word] ? u_acc_alu_bignum.mod_intg_d[i_word*39+:32] :
                                                 u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
-        assign ispr_read_data[IsprMod][i_word*32+:32] = u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
-        assign ispr_write_data[IsprAcc][i_word*32+:32] = u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+        assign ispr_read_data[IsprMod][i_word*32+:32]  =
+            u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+        assign ispr_write_data[IsprAcc][i_word*32+:32] =
+            u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] =
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_wr_en[0][i_word] ?
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_d[0][i_word*39+:32] :
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[0][i_word*39+:32];
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_wr_en[0][i_word] ?
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_d[0][i_word*39+:32] :
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_q[0][i_word*39+:32];
         assign ispr_read_data[IsprKmacMsg0][i_word*32+:32] =
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[0][i_word*39+:32];
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_q[0][i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg1][i_word*32+:32] =
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_wr_en[1][i_word] ?
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_d[1][i_word*39+:32] :
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[1][i_word*39+:32];
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_wr_en[1][i_word] ?
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_d[1][i_word*39+:32] :
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_q[1][i_word*39+:32];
         assign ispr_read_data[IsprKmacMsg1][i_word*32+:32] =
-          u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_intg_q[1][i_word*39+:32];
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_q[1][i_word*39+:32];
         assign ispr_write_data[IsprAccH][i_word*32+:32] =
           u_acc_mac_bignum.gen_acch_wr_en.acch_intg_d[i_word*39+:32];
       end
@@ -290,8 +292,10 @@ interface acc_trace_if
         assign ispr_write_data[IsprMod][i_word*32+:32] =
           u_acc_alu_bignum.mod_wr_en[i_word] ? u_acc_alu_bignum.mod_intg_d[i_word*39+:32] :
                                                 u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
-        assign ispr_read_data[IsprMod][i_word*32+:32] = u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
-        assign ispr_write_data[IsprAcc][i_word*32+:32] = u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+        assign ispr_read_data[IsprMod][i_word*32+:32]  =
+            u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+        assign ispr_write_data[IsprAcc][i_word*32+:32] =
+            u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] = 32'b0;
         assign ispr_read_data[IsprKmacMsg0][i_word*32+:32] = 32'b0;
         assign ispr_write_data[IsprKmacMsg1][i_word*32+:32] = 32'b0;
@@ -311,31 +315,38 @@ interface acc_trace_if
       // KMAC MSG SHARE 0
       assign ispr_read[IsprKmacMsg0] =
         (any_ispr_read & (ispr_addr == IsprKmacMsg0));
-      assign ispr_write[IsprKmacMsg0] = |(u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_wr_en[0]) &&
+      assign ispr_write[IsprKmacMsg0] = |(gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_wr_en[0]) &&
                                         ~ispr_init;
       // KMAC MSG SHARE 1
       assign ispr_read[IsprKmacMsg1] =
         (any_ispr_read & (ispr_addr == IsprKmacMsg1));
-      assign ispr_write[IsprKmacMsg1] = |(u_acc_alu_bignum.gen_pqc_wsr.kmac_msg_wr_en[1]) &&
+      assign ispr_write[IsprKmacMsg1] = |(gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_wr_en[1]) &&
                                         ~ispr_init;
       // KMAC CFG
       assign ispr_read[IsprKmacCfg] =
         (any_ispr_read & (ispr_addr == IsprKmacCfg));
-      assign ispr_read_data[IsprKmacCfg]  = {224'b0, u_acc_alu_bignum.gen_pqc_wsr.kmac_cfg_intg_q[31:0]};
-      assign ispr_write[IsprKmacCfg]      = u_acc_alu_bignum.gen_pqc_wsr.kmac_cfg_wr_en & ~ispr_init;
-      assign ispr_write_data[IsprKmacCfg] = {224'b0, u_acc_alu_bignum.gen_pqc_wsr.kmac_cfg_intg_d[31:0]};
+      assign ispr_read_data[IsprKmacCfg]  = {224'b0,
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_cfg_intg_q[31:0]};
+      assign ispr_write[IsprKmacCfg] = gen_acc_kmac_if.u_acc_kmac_if.kmac_cfg_wr_en &
+                                       ~ispr_init;
+      assign ispr_write_data[IsprKmacCfg] = {224'b0,
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_cfg_intg_d[31:0]};
       // KMAC PARTIAL WRITE
       assign ispr_read[IsprKmacPartialW] =
         (any_ispr_read & (ispr_addr == IsprKmacPartialW));
-      assign ispr_read_data[IsprKmacPartialW]   = {224'b0, u_acc_alu_bignum.gen_pqc_wsr.kmac_pw_intg_q[31:0]};
-      assign ispr_write[IsprKmacPartialW]       = u_acc_alu_bignum.gen_pqc_wsr.kmac_pw_wr_en & ~ispr_init;
-      assign ispr_write_data[IsprKmacPartialW]  = {224'b0, u_acc_alu_bignum.gen_pqc_wsr.kmac_pw_intg_d[31:0]};
+      assign ispr_read_data[IsprKmacPartialW]   = {224'b0,
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_pw_intg_q[31:0]};
+      assign ispr_write[IsprKmacPartialW]       = gen_acc_kmac_if.u_acc_kmac_if.kmac_pw_wr_en &
+                                                  ~ispr_init;
+      assign ispr_write_data[IsprKmacPartialW]  = {224'b0,
+          gen_acc_kmac_if.u_acc_kmac_if.kmac_pw_intg_d[31:0]};
       // ACCH
       assign ispr_write[IsprAccH]     = u_acc_mac_bignum.gen_acch_wr_en.acch_en & ~ispr_init;
       assign ispr_read[IsprAccH]      = (any_ispr_read & (ispr_addr == IsprAccH)) | mac_bignum_en;
       assign ispr_read_data[IsprAccH] =
-          (any_ispr_read & (ispr_addr == IsprAccH)) ? u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
-                                                      u_acc_mac_bignum.gen_acch_blanker.acch_blanked;
+          (any_ispr_read & (ispr_addr == IsprAccH)) ?
+              u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
+              u_acc_mac_bignum.gen_acch_blanker.acch_blanked;
     end else begin : gen_ispr_read_write_blank
       // Need to drive unused signals for verilator linting
       // KMAC MSG

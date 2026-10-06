@@ -271,6 +271,12 @@ module acc_core
   logic kmac_msg_pending_write [2];
   logic kmac_digest_valid;
 
+  // TODO: TMP INTG outputs to be replaced by local KMAC IF mux
+  logic [31:0]             kmac_cfg_intg;
+  logic [31:0]             kmac_status_intg;
+  logic [ExtWLEN-1:0]      kmac_msg_intg    [2];
+  logic [ExtDigestLen-1:0] kmac_digest_intg [2];
+
   logic secure_wipe_req, secure_wipe_ack;
 
   logic sec_wipe_wdr_d, sec_wipe_wdr_q;
@@ -303,8 +309,9 @@ module acc_core
   logic           mubi_err;
 
   logic start_stop_fatal_error;
-  logic rf_bignum_predec_error, alu_bignum_predec_error, ispr_predec_error, mac_bignum_predec_error;
-  logic controller_predec_error, kmac_intf_fatal_error, kmac_intf_recov_error;
+  logic rf_bignum_predec_error, alu_bignum_predec_error;
+  logic ispr_predec_error, mac_bignum_predec_error;
+  logic controller_predec_error, kmac_intf_fatal_error, kmac_intf_recov_error, kmac_intg_err;
   logic rd_predec_error, predec_error;
 
   logic req_sec_wipe_urnd_keys_q;
@@ -893,6 +900,9 @@ module acc_core
     .ispr_acch_wr_data_intg_o(ispr_acch_wr_data_intg),
     .ispr_acch_wr_en_o       (ispr_acch_wr_en),
 
+    // TODO: TMP until ISPR is lifted out of ALU
+    .kmac_intg_err_i(kmac_intg_err),
+
     .reg_intg_violation_err_o(alu_bignum_reg_intg_violation_err),
 
     .sec_wipe_mod_urnd_i      (sec_wipe_mod_urnd),
@@ -908,18 +918,73 @@ module acc_core
 
     .sideload_key_shares_i,
 
-    .kmac_msg_write_ready_o  (kmac_msg_write_ready),
-    .kmac_msg_pending_write_o(kmac_msg_pending_write),
-    .kmac_digest_valid_o     (kmac_digest_valid),
+    // TODO: TMP INTG outputs to be replaced by local mux
+    .kmac_cfg_intg_i   (kmac_cfg_intg),
+    .kmac_status_intg_i(kmac_status_intg),
+    .kmac_msg_intg_i   (kmac_msg_intg),
+    .kmac_digest_intg_i(kmac_digest_intg),
 
-    .kmac_app_rsp_i,
-    .kmac_app_req_o,
-
-    .alu_predec_error_o(alu_bignum_predec_error),
-    .ispr_predec_error_o(ispr_predec_error),
-    .kmac_intf_fatal_error_o(kmac_intf_fatal_error),
-    .kmac_intf_recov_error_o(kmac_intf_recov_error)
+    .alu_predec_error_o     (alu_bignum_predec_error),
+    .ispr_predec_error_o    (ispr_predec_error)
   );
+
+generate
+  if (AccPQCEn) begin: gen_acc_kmac_if
+    acc_kmac_if u_acc_kmac_if (
+      .clk_i,
+      .rst_ni,
+
+      .ispr_predec_bignum_i    (ispr_predec_bignum),
+      .ispr_addr_i             (ispr_addr),
+      .ispr_base_wdata_i       (ispr_base_wdata),
+      .ispr_base_wr_en_i       (ispr_base_wr_en),
+      .ispr_bignum_wdata_intg_i(ispr_bignum_wdata_intg),
+      .ispr_bignum_wr_en_i     (ispr_bignum_wr_en),
+      .ispr_wr_commit_i        (ispr_wr_commit),
+      .ispr_init_i             (ispr_init),
+
+      .ispr_predec_error_i(ispr_predec_error),
+      .alu_predec_error_i (alu_bignum_predec_error),
+      .operation_commit_i (alu_bignum_operation_commit),
+
+      .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
+      .urnd_data_i              (urnd_data),
+
+      .kmac_intf_fatal_error_o(kmac_intf_fatal_error),
+      .kmac_intf_recov_error_o(kmac_intf_recov_error),
+      .kmac_intg_err_o        (kmac_intg_err),
+
+      .kmac_msg_write_ready_o  (kmac_msg_write_ready),
+      .kmac_msg_pending_write_o(kmac_msg_pending_write),
+      .kmac_digest_valid_o     (kmac_digest_valid),
+
+      // TODO: TMP INTG outputs to be replaced by local mux
+      .kmac_cfg_intg_o   (kmac_cfg_intg),
+      .kmac_status_intg_o(kmac_status_intg),
+      .kmac_msg_intg_o   (kmac_msg_intg),
+      .kmac_digest_intg_o(kmac_digest_intg),
+
+      .kmac_app_req_o,
+      .kmac_app_rsp_i
+    );
+  end else begin: gen_acc_kmac_tie_off
+    assign kmac_app_req_o = '0;
+    assign kmac_cfg_intg = '0;
+    assign kmac_status_intg = '0;
+    assign kmac_msg_intg[0] = '0;
+    assign kmac_msg_intg[1] = '0;
+    assign kmac_digest_intg[0] = '0;
+    assign kmac_digest_intg[1] = '0;
+    assign kmac_intf_fatal_error = '0;
+    assign kmac_intf_recov_error = '0;
+    assign kmac_intg_err = '0;
+    assign kmac_msg_write_ready[0] = '0;
+    assign kmac_msg_write_ready[1] = '0;
+    assign kmac_msg_pending_write[0] = '0;
+    assign kmac_msg_pending_write[1] = '0;
+    assign kmac_digest_valid = '0;
+  end
+endgenerate
 
   acc_mac_bignum #(
     .AccPQCEn(AccPQCEn)
