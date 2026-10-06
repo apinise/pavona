@@ -470,7 +470,7 @@ This standard choice of generating polynomial makes it compatible with other too
 The stream over which the checksum is computed is the stream of writes that have been seen since the last write to [`LOAD_CHECKSUM`](registers.md#load_checksum).
 Each write is treated as a 48b value, `{imem, idx, wdata}`.
 Here, `imem` is a single bit flag which is one for writes to IMEM and zero for writes to DMEM.
-The `idx` value is the index of the word within the memory, zero extended from 10b to 15b.
+The `idx` value is the index of the word within the memory, zero extended to 15b, limiting ACC to a maximum of 128 KiB IMEM/DMEM.
 Finally, `wdata` is the 32b word that was written.
 Writes that are less than 32b or not aligned on a 32b boundary are ignored and not factored into the CRC calculation.
 
