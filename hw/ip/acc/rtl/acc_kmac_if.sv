@@ -291,8 +291,7 @@ module acc_kmac_if
     // This write signal is independent of an error in the controller that
     // starts from this module. ispr_wr_commit_i is pulled to 0 when fatal erorr ocurrs
     // which leads to a combinational loop.
-    assign kmac_msg_ispr_base_wr[0][i_word] = (ispr_addr_i == IsprKmacMsg0) &
-                                            (ispr_base_wr_en_i[i_word] | ispr_bignum_wr_en_i);
+    assign kmac_msg_ispr_base_wr[0][i_word] = (ispr_addr_i == IsprKmacMsg0) & ispr_bignum_wr_en_i;
 
     assign kmac_msg_ispr_wr_en[0][i_word] = kmac_msg_ispr_base_wr[0][i_word] & ispr_wr_commit_i;
 
@@ -308,19 +307,20 @@ module acc_kmac_if
 
     always_comb begin
       kmac_msg_no_intg_d[0][i_word*32+:32] = '0;
-      kmac_msg_intg_d[0][i_word*39+:39] = '0;
-      if (sec_wipe_kmac_regs_urnd_i) begin
+      unique case (1'b1)
+        ispr_init_i: kmac_msg_intg_d[0][i_word*39+:39] = EccZeroWord;
         // Non-encoded inputs have to be encoded before writing to the register.
-        kmac_msg_no_intg_d[0][i_word*32+:32] = urnd_data_i[i_word*32+:32];
-        kmac_msg_intg_d[0][i_word*39+:39] = kmac_msg_intg_calc[0][i_word*39+:39];
-      end else begin
+        sec_wipe_kmac_regs_urnd_i: begin
+          kmac_msg_no_intg_d[0][i_word*32+:32] = urnd_data_i[i_word*32+:32];
+          kmac_msg_intg_d[0][i_word*39+:39] = kmac_msg_intg_calc[0][i_word*39+:39];
+        end
         // Pre-encoded inputs can directly be written to the register.
-        kmac_msg_intg_d[0][i_word*39+:39] =
-            ispr_kmac_msg_bignum_wdata_intg_blanked[0][i_word*39+:39];
-      end
+        default: begin
+          kmac_msg_intg_d[0][i_word*39+:39] =
+              ispr_kmac_msg_bignum_wdata_intg_blanked[0][i_word*39+:39];
+        end
+      endcase
     end
-
-    `ASSERT(KmacMsg0WrSelOneHot, $onehot0({ispr_init_i, ispr_base_wr_en_i[i_word]}))
   end
 
   assign kmac_msg_write[0] = (ispr_addr_i == IsprKmacMsg0) & ispr_wr_commit_i;
@@ -346,8 +346,7 @@ module acc_kmac_if
       .err_o      (kmac_msg_intg_err[1][i_word*2+:2])
     );
 
-    assign kmac_msg_ispr_base_wr[1][i_word] = (ispr_addr_i == IsprKmacMsg1) &
-                                            (ispr_base_wr_en_i[i_word] | ispr_bignum_wr_en_i);
+    assign kmac_msg_ispr_base_wr[1][i_word] = (ispr_addr_i == IsprKmacMsg1) & ispr_bignum_wr_en_i;
 
     assign kmac_msg_ispr_wr_en[1][i_word] = kmac_msg_ispr_base_wr[1][i_word] & ispr_wr_commit_i;
 
@@ -364,19 +363,20 @@ module acc_kmac_if
 
     always_comb begin
       kmac_msg_no_intg_d[1][i_word*32+:32] = '0;
-      kmac_msg_intg_d[1][i_word*39+:39] = '0;
-      if (sec_wipe_kmac_regs_urnd_i) begin
+      unique case (1'b1)
+        ispr_init_i: kmac_msg_intg_d[1][i_word*39+:39] = EccZeroWord;
         // Non-encoded inputs have to be encoded before writing to the register.
-        kmac_msg_no_intg_d[1][i_word*32+:32] = urnd_data_i[i_word*32+:32];
-        kmac_msg_intg_d[1][i_word*39+:39] = kmac_msg_intg_calc[1][i_word*39+:39];
-      end else begin
+        sec_wipe_kmac_regs_urnd_i: begin
+          kmac_msg_no_intg_d[1][i_word*32+:32] = urnd_data_i[i_word*32+:32];
+          kmac_msg_intg_d[1][i_word*39+:39] = kmac_msg_intg_calc[1][i_word*39+:39];
+        end
         // Pre-encoded inputs can directly be written to the register.
-        kmac_msg_intg_d[1][i_word*39+:39] =
-            ispr_kmac_msg_bignum_wdata_intg_blanked[1][i_word*39+:39];
-      end
+        default: begin
+          kmac_msg_intg_d[1][i_word*39+:39] =
+              ispr_kmac_msg_bignum_wdata_intg_blanked[1][i_word*39+:39];
+        end
+      endcase
     end
-
-    `ASSERT(KmacMsg1WrSelOneHot, $onehot0({ispr_init_i, ispr_base_wr_en_i[i_word]}))
   end
 
   assign kmac_msg_write[1] = (ispr_addr_i == IsprKmacMsg1) & ispr_wr_commit_i;
@@ -430,9 +430,12 @@ module acc_kmac_if
   logic [DigestRegLen-1:0]              kmac_digest_no_intg_d [Share];
   logic [ExtDigestLen-1:0]              kmac_digest_intg_q    [Share];
   logic [ExtDigestLen-1:0]              kmac_digest_intg_d    [Share];
+  logic [ExtDigestLen-1:0]              kmac_digest_intg_calc [Share];
   logic [2*BaseWordsPerDigestLen-1:0]   kmac_digest_intg_err  [Share];
   logic                                 kmac_digest_valid_q;
-  logic [BaseWordsPerDigestLen-1:0]     kmac_digest_wr_en;
+  logic                                 kmac_digest_wr_en;
+
+  assign kmac_digest_wr_en = ispr_init_i | kmac_app_rsp_i.done | sec_wipe_kmac_regs_urnd_i;
 
   // Unique share 0 net
   logic [DigestRegLen-1:0]              kmac_digest0_mux_val;
@@ -440,7 +443,7 @@ module acc_kmac_if
   for (genvar i_word = 0; i_word < BaseWordsPerDigestLen; i_word++) begin : g_kmac_digest0_words
     prim_secded_inv_39_32_enc i_kmac_digest0_secded_enc (
       .data_i (kmac_digest_no_intg_d[0][i_word*32+:32]),
-      .data_o (kmac_digest_intg_d[0][i_word*39+:39])
+      .data_o (kmac_digest_intg_calc[0][i_word*39+:39])
     );
     prim_secded_inv_39_32_dec i_kmac_digest0_secded_dec (
       .data_i     (kmac_digest_intg_q[0][i_word*39+:39]),
@@ -450,13 +453,27 @@ module acc_kmac_if
     );
 
     always_ff @(posedge clk_i) begin
-      if (kmac_digest_wr_en[i_word]) begin
+      if (kmac_digest_wr_en) begin
         kmac_digest_intg_q[0][i_word*39+:39] <= kmac_digest_intg_d[0][i_word*39+:39];
       end
     end
 
-    assign kmac_digest_no_intg_d[0][i_word*32+:32] = sec_wipe_kmac_regs_urnd_i ?
-        urnd_data_i[(i_word % BaseWordsPerDigestLen)*32+:32] : kmac_digest0_mux_val[i_word*32+:32];
+    always_comb begin
+      kmac_digest_no_intg_d[0][i_word*32+:32] = kmac_digest0_mux_val[i_word*32+:32];
+      unique case (1'b1)
+        ispr_init_i: kmac_digest_intg_d[0][i_word*39+:39] = EccZeroWord;
+        // Non-encoded inputs have to be encoded before writing to the register.
+        sec_wipe_kmac_regs_urnd_i: begin
+          kmac_digest_no_intg_d[0][i_word*32+:32] = urnd_data_i[i_word*32+:32];
+          kmac_digest_intg_d[0][i_word*39+:39] = kmac_digest_intg_calc[0][i_word*39+:39];
+        end
+        // Digest must go through intg_calc before being written into WSR.
+        default: begin
+          kmac_digest_no_intg_d[0][i_word*32+:32] = kmac_digest0_mux_val[i_word*32+:32];
+          kmac_digest_intg_d[0][i_word*39+:39]    = kmac_digest_intg_calc[0][i_word*39+:39];
+        end
+      endcase
+    end
   end
 
   // This module carefully combines the digest shares and should not be optimized in synthesis
@@ -473,7 +490,7 @@ module acc_kmac_if
   for (genvar i_word = 0; i_word < BaseWordsPerDigestLen; i_word++) begin : g_kmac_digest1_words
     prim_secded_inv_39_32_enc i_kmac_digest1_secded_enc (
       .data_i (kmac_digest_no_intg_d[1][i_word*32+:32]),
-      .data_o (kmac_digest_intg_d[1][i_word*39+:39])
+      .data_o (kmac_digest_intg_calc[1][i_word*39+:39])
     );
     prim_secded_inv_39_32_dec i_kmac_digest1_secded_dec (
       .data_i     (kmac_digest_intg_q[1][i_word*39+:39]),
@@ -483,16 +500,27 @@ module acc_kmac_if
     );
 
     always_ff @(posedge clk_i) begin
-      if (kmac_digest_wr_en[i_word]) begin
+      if (kmac_digest_wr_en) begin
         kmac_digest_intg_q[1][i_word*39+:39] <= kmac_digest_intg_d[1][i_word*39+:39];
       end
     end
 
-    assign kmac_digest_no_intg_d[1][i_word*32+:32] = sec_wipe_kmac_regs_urnd_i ?
-        urnd_data_i[(i_word % BaseWordsPerDigestLen)*32+:32] :
-        kmac_app_rsp_i.digest_share1[i_word*32+:32];
-
-    assign kmac_digest_wr_en[i_word] = kmac_app_rsp_i.done | sec_wipe_kmac_regs_urnd_i;
+    always_comb begin
+      kmac_digest_no_intg_d[1][i_word*32+:32] = kmac_app_rsp_i.digest_share1[i_word*32+:32];
+      unique case (1'b1)
+        ispr_init_i: kmac_digest_intg_d[1][i_word*39+:39] = EccZeroWord;
+        // Non-encoded inputs have to be encoded before writing to the register.
+        sec_wipe_kmac_regs_urnd_i: begin
+          kmac_digest_no_intg_d[1][i_word*32+:32] = urnd_data_i[i_word*32+:32];
+          kmac_digest_intg_d[1][i_word*39+:39] = kmac_digest_intg_calc[1][i_word*39+:39];
+        end
+        // Digest must go through intg_calc before being written into WSR.
+        default: begin
+          kmac_digest_no_intg_d[1][i_word*32+:32] = kmac_app_rsp_i.digest_share1[i_word*32+:32];
+          kmac_digest_intg_d[1][i_word*39+:39]    = kmac_digest_intg_calc[1][i_word*39+:39];
+        end
+      endcase
+    end
   end
 
   // Check if there is a read from DIGEST SHARE 1 outside of masked mode

@@ -571,7 +571,7 @@ All read-write (RW) WSRs are set to 0 when ACC starts an operation (when 1 is wr
     </tr>
     <tr>
       <td>0xA</td>
-      <td>RW</td>
+      <td>RO</td>
       <td><a name="kmac-digest">KMAC_DIGEST</a></td>
       <td>
         Return digest share 0 from AppIntf. In unmasked kmac_cfg this is the whole digest.
@@ -587,7 +587,7 @@ All read-write (RW) WSRs are set to 0 when ACC starts an operation (when 1 is wr
     </tr>
     <tr>
       <td>0xC</td>
-      <td>RW</td>
+      <td>RO</td>
       <td><a name="kmac-msg1">KMAC_MSG1</a></td>
       <td>
         The kmac message data share1 to send over the AppIntf. In unmasked kmac_cfg writing to this WSR is illegal.
