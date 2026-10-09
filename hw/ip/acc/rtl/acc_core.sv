@@ -244,6 +244,8 @@ module acc_core
   logic [ExtWLEN-1:0]          ispr_acch_wr_data_intg;
   logic                        ispr_acch_wr_en;
   logic                        ispr_init;
+  logic [WLEN-1:0]             ispr_mod_no_intg;
+  logic                        ispr_mod_used;
 
   logic            rnd_req;
   logic            rnd_prefetch_req;
@@ -265,6 +267,13 @@ module acc_core
   logic        state_reset;
   logic        insn_cnt_clear_int;
   logic [31:0] insn_cnt;
+
+  // Flags between ALU/MAC and ISPR
+  flags_t selected_flags;
+  flags_t alu_adder_update_flags;
+  logic   alu_adder_update_flags_en_raw;
+  flags_t alu_logic_update_flags;
+  logic   alu_logic_update_flags_en_raw;
 
   // Split into two shares
   logic kmac_msg_write_ready   [2];
@@ -312,7 +321,7 @@ module acc_core
   logic rf_bignum_predec_error, alu_bignum_predec_error;
   logic ispr_predec_error, mac_bignum_predec_error;
   logic controller_predec_error, kmac_intf_fatal_error, kmac_intf_recov_error, kmac_intg_err;
-  logic rd_predec_error, predec_error;
+  logic rd_predec_error, flags_predec_error, predec_error;
 
   logic req_sec_wipe_urnd_keys_q;
 
@@ -445,7 +454,7 @@ module acc_core
   );
 
   // SEC_CM: CTRL.REDUN
-  // ALU and MAC predecode is only relevant when there is a valid instruction, as without one it is
+  // ALU/ISPR/MAC predecode is only relevant when there is a valid instruction, as without one it is
   // guaranteed there are no register reads (hence no sensitive data bits being fed into the blanked
   // data paths). RF and ISPR predecode must always be checked to ensure read and write data paths
   // are always correctly blanked.
@@ -454,9 +463,10 @@ module acc_core
                              ispr_predec_bignum.ispr_rd_en} & ~insn_valid;
 
   assign predec_error =
-    ((alu_bignum_predec_error | mac_bignum_predec_error | controller_predec_error) & insn_valid) |
-     rf_bignum_predec_error                                                                      |
-     ispr_predec_error                                                                           |
+    ((alu_bignum_predec_error | flags_predec_error |
+      mac_bignum_predec_error | controller_predec_error) & insn_valid) |
+     rf_bignum_predec_error                                            |
+     ispr_predec_error                                                 |
      rd_predec_error;
 
   assign sec_wipe_err = |{rf_base_wr_sec_wipe_err,
@@ -876,6 +886,30 @@ module acc_core
     .operation_valid_i (alu_bignum_operation_valid),
     .operation_commit_i(alu_bignum_operation_commit),
     .operation_result_o(alu_bignum_operation_result),
+
+    .alu_predec_bignum_i(alu_predec_bignum),
+
+    .ispr_mod_no_intg_i(ispr_mod_no_intg),
+    .mod_used_o        (ispr_mod_used),
+
+    .selected_flags_i           (selected_flags),
+    .adder_update_flags_o       (alu_adder_update_flags),
+    .adder_update_flags_en_raw_o(alu_adder_update_flags_en_raw),
+    .logic_update_flags_o       (alu_logic_update_flags),
+    .logic_update_flags_en_raw_o(alu_logic_update_flags_en_raw),
+
+    .alu_predec_error_o(alu_bignum_predec_error)
+  );
+
+  acc_ispr_bignum #(
+    .AccPQCEn(AccPQCEn)
+  ) u_acc_ispr_bignum (
+    .clk_i,
+    .rst_ni,
+
+    .operation_i       (alu_bignum_operation),
+    .operation_valid_i (alu_bignum_operation_valid),
+    .operation_commit_i(alu_bignum_operation_commit),
     .selection_flag_o  (alu_bignum_selection_flag),
 
     .alu_predec_bignum_i (alu_predec_bignum),
@@ -892,6 +926,25 @@ module acc_core
     .ispr_rdata_intg_o       (ispr_rdata_intg),
     .ispr_rd_en_i            (ispr_rd_en),
 
+    .kmac_intg_err_i         (kmac_intg_err),
+    .reg_intg_violation_err_o(alu_bignum_reg_intg_violation_err),
+
+    .sec_wipe_mod_urnd_i      (sec_wipe_mod_urnd),
+    .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
+    .sec_wipe_running_i       (secure_wipe_running_o),
+    .sec_wipe_err_o           (alu_bignum_sec_wipe_err),
+
+    .rnd_data_i (rnd_data),
+    .urnd_data_i(urnd_data),
+
+    .mac_operation_flags_i          (mac_bignum_operation_flags),
+    .mac_operation_flags_en_i       (mac_bignum_operation_flags_en),
+    .alu_logic_update_flags_i       (alu_logic_update_flags),
+    .alu_logic_update_flags_en_raw_i(alu_logic_update_flags_en_raw),
+    .alu_adder_update_flags_i       (alu_adder_update_flags),
+    .alu_adder_update_flags_en_raw_i(alu_adder_update_flags_en_raw),
+    .selected_flags_o               (selected_flags),
+
     .ispr_acc_intg_i        (ispr_acc_intg),
     .ispr_acc_wr_data_intg_o(ispr_acc_wr_data_intg),
     .ispr_acc_wr_en_o       (ispr_acc_wr_en),
@@ -900,91 +953,78 @@ module acc_core
     .ispr_acch_wr_data_intg_o(ispr_acch_wr_data_intg),
     .ispr_acch_wr_en_o       (ispr_acch_wr_en),
 
-    // TODO: TMP until ISPR is lifted out of ALU
-    .kmac_intg_err_i(kmac_intg_err),
-
-    .reg_intg_violation_err_o(alu_bignum_reg_intg_violation_err),
-
-    .sec_wipe_mod_urnd_i      (sec_wipe_mod_urnd),
-    .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
-    .sec_wipe_running_i       (secure_wipe_running_o),
-    .sec_wipe_err_o           (alu_bignum_sec_wipe_err),
-
-    .mac_operation_flags_i   (mac_bignum_operation_flags),
-    .mac_operation_flags_en_i(mac_bignum_operation_flags_en),
-
-    .rnd_data_i (rnd_data),
-    .urnd_data_i(urnd_data),
+    .alu_mod_used_i(ispr_mod_used),
+    .mod_no_intg_o (ispr_mod_no_intg),
 
     .sideload_key_shares_i,
 
-    // TODO: TMP INTG outputs to be replaced by local mux
     .kmac_cfg_intg_i   (kmac_cfg_intg),
     .kmac_status_intg_i(kmac_status_intg),
     .kmac_msg_intg_i   (kmac_msg_intg),
     .kmac_digest_intg_i(kmac_digest_intg),
 
-    .alu_predec_error_o     (alu_bignum_predec_error),
-    .ispr_predec_error_o    (ispr_predec_error)
+    .alu_predec_error_i  (alu_bignum_predec_error),
+    .flags_predec_error_o(flags_predec_error),
+    .ispr_predec_error_o (ispr_predec_error)
   );
 
-generate
-  if (AccPQCEn) begin: gen_acc_kmac_if
-    acc_kmac_if u_acc_kmac_if (
-      .clk_i,
-      .rst_ni,
+  generate
+    if (AccPQCEn) begin: gen_acc_kmac_if
+      acc_kmac_if u_acc_kmac_if (
+        .clk_i,
+        .rst_ni,
 
-      .ispr_predec_bignum_i    (ispr_predec_bignum),
-      .ispr_addr_i             (ispr_addr),
-      .ispr_base_wdata_i       (ispr_base_wdata),
-      .ispr_base_wr_en_i       (ispr_base_wr_en),
-      .ispr_bignum_wdata_intg_i(ispr_bignum_wdata_intg),
-      .ispr_bignum_wr_en_i     (ispr_bignum_wr_en),
-      .ispr_wr_commit_i        (ispr_wr_commit),
-      .ispr_init_i             (ispr_init),
+        .ispr_predec_bignum_i    (ispr_predec_bignum),
+        .ispr_addr_i             (ispr_addr),
+        .ispr_base_wdata_i       (ispr_base_wdata),
+        .ispr_base_wr_en_i       (ispr_base_wr_en),
+        .ispr_bignum_wdata_intg_i(ispr_bignum_wdata_intg),
+        .ispr_bignum_wr_en_i     (ispr_bignum_wr_en),
+        .ispr_wr_commit_i        (ispr_wr_commit),
+        .ispr_init_i             (ispr_init),
 
-      .ispr_predec_error_i(ispr_predec_error),
-      .alu_predec_error_i (alu_bignum_predec_error),
-      .operation_commit_i (alu_bignum_operation_commit),
+        .ispr_predec_error_i(ispr_predec_error),
+        .alu_predec_error_i (alu_bignum_predec_error),
+        .operation_commit_i (alu_bignum_operation_commit),
 
-      .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
-      .urnd_data_i              (urnd_data),
+        .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
+        .urnd_data_i              (urnd_data),
 
-      .kmac_intf_fatal_error_o(kmac_intf_fatal_error),
-      .kmac_intf_recov_error_o(kmac_intf_recov_error),
-      .kmac_intg_err_o        (kmac_intg_err),
+        .kmac_intf_fatal_error_o(kmac_intf_fatal_error),
+        .kmac_intf_recov_error_o(kmac_intf_recov_error),
+        .kmac_intg_err_o        (kmac_intg_err),
 
-      .kmac_msg_write_ready_o  (kmac_msg_write_ready),
-      .kmac_msg_pending_write_o(kmac_msg_pending_write),
-      .kmac_digest_valid_o     (kmac_digest_valid),
+        .kmac_msg_write_ready_o  (kmac_msg_write_ready),
+        .kmac_msg_pending_write_o(kmac_msg_pending_write),
+        .kmac_digest_valid_o     (kmac_digest_valid),
 
-      // TODO: TMP INTG outputs to be replaced by local mux
-      .kmac_cfg_intg_o   (kmac_cfg_intg),
-      .kmac_status_intg_o(kmac_status_intg),
-      .kmac_msg_intg_o   (kmac_msg_intg),
-      .kmac_digest_intg_o(kmac_digest_intg),
+        // TODO: TMP INTG outputs to be replaced by local mux
+        .kmac_cfg_intg_o   (kmac_cfg_intg),
+        .kmac_status_intg_o(kmac_status_intg),
+        .kmac_msg_intg_o   (kmac_msg_intg),
+        .kmac_digest_intg_o(kmac_digest_intg),
 
-      .kmac_app_req_o,
-      .kmac_app_rsp_i
-    );
-  end else begin: gen_acc_kmac_tie_off
-    assign kmac_app_req_o = '0;
-    assign kmac_cfg_intg = '0;
-    assign kmac_status_intg = '0;
-    assign kmac_msg_intg[0] = '0;
-    assign kmac_msg_intg[1] = '0;
-    assign kmac_digest_intg[0] = '0;
-    assign kmac_digest_intg[1] = '0;
-    assign kmac_intf_fatal_error = '0;
-    assign kmac_intf_recov_error = '0;
-    assign kmac_intg_err = '0;
-    assign kmac_msg_write_ready[0] = '0;
-    assign kmac_msg_write_ready[1] = '0;
-    assign kmac_msg_pending_write[0] = '0;
-    assign kmac_msg_pending_write[1] = '0;
-    assign kmac_digest_valid = '0;
-  end
-endgenerate
+        .kmac_app_req_o,
+        .kmac_app_rsp_i
+      );
+    end else begin: gen_acc_kmac_tie_off
+      assign kmac_app_req_o = '0;
+      assign kmac_cfg_intg = '0;
+      assign kmac_status_intg = '0;
+      assign kmac_msg_intg[0] = '0;
+      assign kmac_msg_intg[1] = '0;
+      assign kmac_digest_intg[0] = '0;
+      assign kmac_digest_intg[1] = '0;
+      assign kmac_intf_fatal_error = '0;
+      assign kmac_intf_recov_error = '0;
+      assign kmac_intg_err = '0;
+      assign kmac_msg_write_ready[0] = '0;
+      assign kmac_msg_write_ready[1] = '0;
+      assign kmac_msg_pending_write[0] = '0;
+      assign kmac_msg_pending_write[1] = '0;
+      assign kmac_digest_valid = '0;
+    end
+  endgenerate
 
   acc_mac_bignum #(
     .AccPQCEn(AccPQCEn)

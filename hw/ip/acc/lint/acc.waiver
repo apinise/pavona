@@ -31,7 +31,7 @@ waive -rules {HIER_NET_NOT_READ NOT_READ} -location {acc.sv}  \
       -regexp {(Net|Signal) 'imem_wmask_bus' is not read from} \
       -comment {Signal is used in an assertion.}
 
-waive -rules {CLOCK_USE RESET_USE} -location {acc_alu_bignum.sv acc_rf_bignum_ff.sv acc_core.sv} \
+waive -rules {CLOCK_USE RESET_USE} -location {acc_alu_bignum.sv acc_rf_bignum_ff.sv acc_core.sv acc_ispr_bignum.sv} \
       -regexp {'(clk_i|rst_ni)' is connected to '(prim_onehot_mux|acc_mac_bignum)' port} \
       -comment {The module is fully combinatorial, clk/rst are only used for assertions.}
 
@@ -39,6 +39,6 @@ waive -rules {CLOCK_USE RESET_USE} -location {acc_instruction_fetch.sv} \
       -regexp {'(clk_i|rst_ni)' is connected to 'acc_predecode' port} \
       -comment {The module is fully combinatorial, clk/rst are only used for assertions.}
 
-waive -rules {ONE_BIT_MEM_WIDTH} -location {acc_alu_bignum.sv} \
+waive -rules {ONE_BIT_MEM_WIDTH} -location {acc_alu_bignum.sv acc_ispr_bignum.sv} \
       -msg {Memory 'flag_mux_in' has word width which is single bit wide} \
       -comment {The in_i input of prim_onehot_mux has an unpacked and a packed dimension where in this particular case the latter is 1.}

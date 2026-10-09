@@ -1364,7 +1364,7 @@ module acc
             u_acc_core.u_acc_start_stop_control.state_error_d)
 
   `ASSERT(SecWipeNonZeroMod_A,
-          $fell(busy_secure_wipe) |-> u_acc_core.u_acc_alu_bignum.mod_intg_q != EccWideZeroWord,
+          $fell(busy_secure_wipe) |-> u_acc_core.u_acc_ispr_bignum.mod_intg_q != EccWideZeroWord,
           clk_i,
           !rst_ni || u_acc_core.urnd_reseed_err ||
             u_acc_core.u_acc_start_stop_control.mubi_err_d ||
@@ -1373,14 +1373,14 @@ module acc
 
   `ASSERT(SecWipeNonZeroACC_A,
           $fell(busy_secure_wipe) |->
-            u_acc_core.u_acc_alu_bignum.ispr_acc_intg_i != EccWideZeroWord,
+            u_acc_core.u_acc_ispr_bignum.ispr_acc_intg_i != EccWideZeroWord,
           clk_i,
           !rst_ni || u_acc_core.urnd_reseed_err ||
             u_acc_core.u_acc_start_stop_control.mubi_err_d ||
             u_acc_core.u_acc_start_stop_control.state_error_d)
 
   `ASSERT(SecWipeNonZeroFlags_A,
-          $fell(busy_secure_wipe) |-> (!u_acc_core.u_acc_alu_bignum.flags_flattened),
+          $fell(busy_secure_wipe) |-> (!u_acc_core.u_acc_ispr_bignum.flags_flattened),
           clk_i,
           !rst_ni || u_acc_core.urnd_reseed_err ||
             u_acc_core.u_acc_start_stop_control.mubi_err_d ||
