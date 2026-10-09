@@ -22,7 +22,7 @@ filesets:
     files:
       - acc_env_pkg.sv
       - acc_loop_if.sv
-      - acc_alu_bignum_if.sv
+      - acc_ispr_bignum_if.sv
       - acc_controller_if.sv
       - acc_mac_bignum_if.sv
       - acc_rf_base_if.sv
@@ -55,7 +55,7 @@ filesets:
       - seq_lib/acc_rnd_sec_cm_vseq.sv: {is_include_file: true}
       - seq_lib/acc_sw_errs_fatal_chk_vseq.sv: {is_include_file: true}
       - seq_lib/acc_intg_err_vseq.sv: {is_include_file: true}
-      - seq_lib/acc_alu_bignum_mod_err_vseq.sv: {is_include_file: true}
+      - seq_lib/acc_ispr_bignum_mod_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_controller_ispr_rdata_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_mac_bignum_acc_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_rf_base_intg_err_vseq.sv: {is_include_file: true}

@@ -260,16 +260,16 @@ interface acc_trace_if
       (insn_dec_shared.ispr_rd_insn | insn_dec_shared.ispr_rs_insn) & insn_fetch_resp_valid;
 
 
-  assign ispr_write[IsprMod] = |u_acc_alu_bignum.mod_wr_en & ~ispr_init;
+  assign ispr_write[IsprMod] = |u_acc_ispr_bignum.mod_wr_en & ~ispr_init;
 
   generate
     if (AccPQCEn) begin : gen_ispr_data_pqc
       for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_mod_and_acc_words
         assign ispr_write_data[IsprMod][i_word*32+:32] =
-          u_acc_alu_bignum.mod_wr_en[i_word] ? u_acc_alu_bignum.mod_intg_d[i_word*39+:32] :
-                                                u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+          u_acc_ispr_bignum.mod_wr_en[i_word] ? u_acc_ispr_bignum.mod_intg_d[i_word*39+:32] :
+                                                u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_read_data[IsprMod][i_word*32+:32]  =
-            u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+            u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_write_data[IsprAcc][i_word*32+:32] =
             u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] =
@@ -290,10 +290,10 @@ interface acc_trace_if
     end else begin : gen_ispr_data
       for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_mod_and_acc_words
         assign ispr_write_data[IsprMod][i_word*32+:32] =
-          u_acc_alu_bignum.mod_wr_en[i_word] ? u_acc_alu_bignum.mod_intg_d[i_word*39+:32] :
-                                                u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+          u_acc_ispr_bignum.mod_wr_en[i_word] ? u_acc_ispr_bignum.mod_intg_d[i_word*39+:32] :
+                                                u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_read_data[IsprMod][i_word*32+:32]  =
-            u_acc_alu_bignum.mod_intg_q[i_word*39+:32];
+            u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_write_data[IsprAcc][i_word*32+:32] =
             u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] = 32'b0;
@@ -448,17 +448,17 @@ interface acc_trace_if
 
   for (genvar i_fg = 0; i_fg < NFlagGroups; i_fg++) begin : g_flag_group_acceses
     assign flags_write[i_fg] = (sec_wipe_zero |
-        ((u_acc_alu_bignum.alu_predec_bignum_i.flags_adder_update[i_fg] |
-          u_acc_alu_bignum.alu_predec_bignum_i.flags_logic_update[i_fg] |
-          u_acc_alu_bignum.alu_predec_bignum_i.flags_mac_update[i_fg] |
-          (|u_acc_alu_bignum.alu_predec_bignum_i.flags_ispr_wr)) &
-          u_acc_alu_bignum.operation_commit_i)) & ~ispr_init;
-    assign flags_write_data[i_fg] = u_acc_alu_bignum.flags_d[i_fg];
+        ((u_acc_ispr_bignum.alu_predec_bignum_i.flags_adder_update[i_fg] |
+          u_acc_ispr_bignum.alu_predec_bignum_i.flags_logic_update[i_fg] |
+          u_acc_ispr_bignum.alu_predec_bignum_i.flags_mac_update[i_fg] |
+          (|u_acc_ispr_bignum.alu_predec_bignum_i.flags_ispr_wr)) &
+          u_acc_ispr_bignum.operation_commit_i)) & ~ispr_init;
+    assign flags_write_data[i_fg] = u_acc_ispr_bignum.flags_d[i_fg];
 
     assign flags_read[i_fg] = (any_ispr_read & (ispr_addr == IsprFlags)) |
          (flag_group_read_op & (alu_bignum_operation.flag_group == i_fg) & insn_fetch_resp_valid);
 
-    assign flags_read_data[i_fg] = u_acc_alu_bignum.flags_q[i_fg];
+    assign flags_read_data[i_fg] = u_acc_ispr_bignum.flags_q[i_fg];
   end
 
   logic initial_secure_wipe_done;

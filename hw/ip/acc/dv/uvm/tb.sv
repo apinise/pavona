@@ -191,7 +191,7 @@ module tb;
       .loop_stack_pop
     );
 
-  bind dut.u_acc_core.u_acc_alu_bignum acc_alu_bignum_if i_acc_alu_bignum_if (.*);
+  bind dut.u_acc_core.u_acc_ispr_bignum acc_ispr_bignum_if i_acc_ispr_bignum_if (.*);
   bind dut.u_acc_core.u_acc_controller acc_controller_if i_acc_controller_if (.*);
   bind dut.u_acc_core.u_acc_mac_bignum acc_mac_bignum_if i_acc_mac_bignum_if (.*);
   bind dut.u_acc_core.u_acc_rf_base acc_rf_base_if i_acc_rf_base_if (.*);
@@ -343,9 +343,9 @@ module tb;
     uvm_config_db#(virtual acc_loop_if)::set(
       null, "*.env", "loop_vif",
       dut.u_acc_core.u_acc_controller.u_acc_loop_controller.i_acc_loop_if);
-    uvm_config_db#(virtual acc_alu_bignum_if)::set(
-      null, "*.env", "alu_bignum_vif",
-      dut.u_acc_core.u_acc_alu_bignum.i_acc_alu_bignum_if);
+    uvm_config_db#(virtual acc_ispr_bignum_if)::set(
+      null, "*.env", "ispr_bignum_vif",
+      dut.u_acc_core.u_acc_ispr_bignum.i_acc_ispr_bignum_if);
     uvm_config_db#(virtual acc_controller_if)::set(
       null, "*.env", "controller_vif",
       dut.u_acc_core.u_acc_controller.i_acc_controller_if);

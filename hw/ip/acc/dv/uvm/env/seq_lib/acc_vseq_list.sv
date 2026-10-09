@@ -17,7 +17,7 @@
 `include "acc_illegal_mem_acc_vseq.sv"
 `include "acc_sw_errs_fatal_chk_vseq.sv"
 `include "acc_intg_err_vseq.sv"
-`include "acc_alu_bignum_mod_err_vseq.sv"
+`include "acc_ispr_bignum_mod_err_vseq.sv"
 `include "acc_controller_ispr_rdata_err_vseq.sv"
 `include "acc_mac_bignum_acc_err_vseq.sv"
 `include "acc_rf_base_intg_err_vseq.sv"

@@ -61,9 +61,9 @@ class acc_env extends cip_base_env #(
     if (!uvm_config_db#(virtual acc_loop_if)::get(this, "", "loop_vif", cfg.loop_vif)) begin
       `uvm_fatal(`gfn, "failed to get acc_loop_if handle from uvm_config_db")
     end
-    if (!uvm_config_db#(virtual acc_alu_bignum_if)::get(this, "", "alu_bignum_vif",
-                                                         cfg.alu_bignum_vif)) begin
-      `uvm_fatal(`gfn, "failed to get acc_alu_bignum_if handle from uvm_config_db")
+    if (!uvm_config_db#(virtual acc_ispr_bignum_if)::get(this, "", "ispr_bignum_vif",
+                                                         cfg.ispr_bignum_vif)) begin
+      `uvm_fatal(`gfn, "failed to get acc_ispr_bignum_if handle from uvm_config_db")
     end
     if (!uvm_config_db#(virtual acc_controller_if)::get(this, "", "controller_vif",
                                                          cfg.controller_vif)) begin

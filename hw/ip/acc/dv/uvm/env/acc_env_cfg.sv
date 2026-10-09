@@ -21,15 +21,15 @@ class acc_env_cfg extends cip_base_env_cfg #(.RAL_T(acc_reg_block));
 
   `uvm_object_new
 
-  virtual acc_trace_if      trace_vif;
-  virtual acc_loop_if       loop_vif;
-  virtual acc_alu_bignum_if alu_bignum_vif;
-  virtual acc_controller_if controller_vif;
-  virtual acc_mac_bignum_if mac_bignum_vif;
-  virtual acc_rf_base_if    rf_base_vif;
-  virtual acc_escalate_if   escalate_vif;
-  virtual acc_rnd_if        rnd_vif;
-  virtual acc_ssctrl_if     ssctrl_vif;
+  virtual acc_trace_if       trace_vif;
+  virtual acc_loop_if        loop_vif;
+  virtual acc_ispr_bignum_if ispr_bignum_vif;
+  virtual acc_controller_if  controller_vif;
+  virtual acc_mac_bignum_if  mac_bignum_vif;
+  virtual acc_rf_base_if     rf_base_vif;
+  virtual acc_escalate_if    escalate_vif;
+  virtual acc_rnd_if         rnd_vif;
+  virtual acc_ssctrl_if      ssctrl_vif;
 
   sram_ctrl_bkdr_util imem_util;
   sram_ctrl_bkdr_util dmem_util;

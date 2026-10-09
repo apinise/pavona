@@ -88,8 +88,8 @@ class acc_ctrl_redun_vseq extends acc_single_vseq;
     case(err_type)
       0: begin
         report_err_type("error on ispr_addr during a write");
-        err_path = "tb.dut.u_acc_core.u_acc_alu_bignum.ispr_addr_i";
-        wait_for_flag("tb.dut.u_acc_core.u_acc_alu_bignum.ispr_wr_en", 1);
+        err_path = "tb.dut.u_acc_core.u_acc_ispr_bignum.ispr_addr_i";
+        wait_for_flag("tb.dut.u_acc_core.u_acc_ispr_bignum.ispr_wr_en", 1);
         `DV_CHECK_FATAL(uvm_hdl_read(err_path, good_addr));
         // Mask to corrupt 1 to 2 bits of the ispr addr
         `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(mask, $countones(mask) inside {[1:2]};)
@@ -98,8 +98,8 @@ class acc_ctrl_redun_vseq extends acc_single_vseq;
       end
       1: begin
         report_err_type("error on ispr_addr during a read");
-        err_path = "tb.dut.u_acc_core.u_acc_alu_bignum.ispr_addr_i";
-        wait_for_flag("tb.dut.u_acc_core.u_acc_alu_bignum.ispr_rd_en_i", 1);
+        err_path = "tb.dut.u_acc_core.u_acc_ispr_bignum.ispr_addr_i";
+        wait_for_flag("tb.dut.u_acc_core.u_acc_ispr_bignum.ispr_rd_en_i", 1);
         `DV_CHECK_FATAL(uvm_hdl_read(err_path, good_addr));
         // Mask to corrupt 1 to 2 bits of the ispr addr
         `DV_CHECK_STD_RANDOMIZE_WITH_FATAL(mask, $countones(mask) inside {[1:2]};)
@@ -114,9 +114,10 @@ class acc_ctrl_redun_vseq extends acc_single_vseq;
         bit         op_valid = 1'b0;
 
         string alu_path = "tb.dut.u_acc_core.u_acc_alu_bignum";
+        string ispr_path = "tb.dut.u_acc_core.u_acc_ispr_bignum";
         string op_path = {alu_path, ".operation_i.op"};
         string op_valid_path = {alu_path, ".operation_valid_i"};
-        string carry_path = {alu_path, ".selected_flags.C"};
+        string carry_path = {ispr_path, ".selected_flags.C"};
 
         report_err_type("error in opcode on the bignum side");
         err_path = "tb.dut.u_acc_core.u_acc_alu_bignum.operation_i.op";

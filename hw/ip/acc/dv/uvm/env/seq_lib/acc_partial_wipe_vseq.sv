@@ -15,7 +15,7 @@ class acc_partial_wipe_vseq extends acc_single_vseq;
     string hdl_path = "tb.dut.u_acc_core";
     int    ticks_until_err = 1;
     randcase
-      1: hdl_path = {hdl_path, ".u_acc_alu_bignum.sec_wipe_mod_urnd_i"};
+      1: hdl_path = {hdl_path, ".u_acc_ispr_bignum.sec_wipe_mod_urnd_i"};
       1: hdl_path = {hdl_path, ".u_acc_controller.sec_wipe_zero_i"};
       1: hdl_path = {hdl_path, ".sec_wipe_base"};
       1: hdl_path = {hdl_path, ".u_acc_rf_base.sec_wipe_stack_reset_i"};
