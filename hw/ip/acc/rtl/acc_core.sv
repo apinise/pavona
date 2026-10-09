@@ -280,11 +280,8 @@ module acc_core
   logic kmac_msg_pending_write [2];
   logic kmac_digest_valid;
 
-  // TODO: TMP INTG outputs to be replaced by local KMAC IF mux
-  logic [31:0]             kmac_cfg_intg;
-  logic [31:0]             kmac_status_intg;
-  logic [ExtWLEN-1:0]      kmac_msg_intg    [2];
-  logic [ExtDigestLen-1:0] kmac_digest_intg [2];
+  logic [31:0]             kmac_ispr_rdata_no_intg;
+  logic [ExtWLEN-1:0]      kmac_ispr_rdata_intg;
 
   logic secure_wipe_req, secure_wipe_ack;
 
@@ -958,10 +955,8 @@ module acc_core
 
     .sideload_key_shares_i,
 
-    .kmac_cfg_intg_i   (kmac_cfg_intg),
-    .kmac_status_intg_i(kmac_status_intg),
-    .kmac_msg_intg_i   (kmac_msg_intg),
-    .kmac_digest_intg_i(kmac_digest_intg),
+    .kmac_ispr_rdata_no_intg_i(kmac_ispr_rdata_no_intg),
+    .kmac_ispr_rdata_intg_i   (kmac_ispr_rdata_intg),
 
     .alu_predec_error_i  (alu_bignum_predec_error),
     .flags_predec_error_o(flags_predec_error),
@@ -998,23 +993,16 @@ module acc_core
         .kmac_msg_pending_write_o(kmac_msg_pending_write),
         .kmac_digest_valid_o     (kmac_digest_valid),
 
-        // TODO: TMP INTG outputs to be replaced by local mux
-        .kmac_cfg_intg_o   (kmac_cfg_intg),
-        .kmac_status_intg_o(kmac_status_intg),
-        .kmac_msg_intg_o   (kmac_msg_intg),
-        .kmac_digest_intg_o(kmac_digest_intg),
+        .kmac_ispr_rdata_no_intg_o(kmac_ispr_rdata_no_intg),
+        .kmac_ispr_rdata_intg_o   (kmac_ispr_rdata_intg),
 
         .kmac_app_req_o,
         .kmac_app_rsp_i
       );
     end else begin: gen_acc_kmac_tie_off
       assign kmac_app_req_o = '0;
-      assign kmac_cfg_intg = '0;
-      assign kmac_status_intg = '0;
-      assign kmac_msg_intg[0] = '0;
-      assign kmac_msg_intg[1] = '0;
-      assign kmac_digest_intg[0] = '0;
-      assign kmac_digest_intg[1] = '0;
+      assign kmac_ispr_rdata_no_intg = '0;
+      assign kmac_ispr_rdata_intg = '0;
       assign kmac_intf_fatal_error = '0;
       assign kmac_intf_recov_error = '0;
       assign kmac_intg_err = '0;

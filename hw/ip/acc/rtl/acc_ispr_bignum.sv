@@ -12,8 +12,7 @@ module acc_ispr_bignum
   import acc_pkg::*;
 #(
   // Enabling PQC hardware support with vector ISA extension
-  parameter  bit AccPQCEn = 1'b1,
-  localparam int Share    = 2
+  parameter  bit AccPQCEn = 1'b1
 ) (
   input logic clk_i,
   input logic rst_ni,
@@ -69,11 +68,8 @@ module acc_ispr_bignum
 
   input  logic [1:0][SideloadKeyWidth-1:0] sideload_key_shares_i,
 
-  // TODO: TMP INTG outputs to be replaced by local mux
-  input  logic [31:0]             kmac_cfg_intg_i,
-  input  logic [31:0]             kmac_status_intg_i,
-  input  logic [ExtWLEN-1:0]      kmac_msg_intg_i    [Share],
-  input  logic [ExtDigestLen-1:0] kmac_digest_intg_i [Share],
+  input  logic [31:0]        kmac_ispr_rdata_no_intg_i,
+  input  logic [ExtWLEN-1:0] kmac_ispr_rdata_intg_i,
 
   input  logic alu_predec_error_i,
   output logic flags_predec_error_o,
@@ -447,18 +443,15 @@ module acc_ispr_bignum
   localparam int IsprAccIntg        = 1;
   generate
     if (AccPQCEn) begin : gen_ispr_ids_pqc
-      localparam int IsprKmacMsg0Intg    = 2;
-      localparam int IsprKmacMsg1Intg    = 3;
-      localparam int IsprKmacDigest0Intg = 4;
-      localparam int IsprKmacDigest1Intg = 5;
-      localparam int IsprAccHIntg        = 6;
+      localparam int IsprKmacIntg = 2;
+      localparam int IsprAccHIntg = 3;
     end
   endgenerate
 
   // ID representing all ISPRs with no integrity
-  localparam int IsprNoIntg = AccPQCEn ? 7 : 2;
+  localparam int IsprNoIntg = AccPQCEn ? 4 : 2;
   // Number of ISPRs that have integrity protection
-  localparam int NIntgIspr  = AccPQCEn ? 7 : 2;
+  localparam int NIntgIspr  = AccPQCEn ? 4 : 2;
 
   logic [NIntgIspr:0] ispr_rdata_intg_mux_sel;
   logic [ExtWLEN-1:0] ispr_rdata_intg_mux_in    [NIntgIspr+1];
@@ -474,10 +467,13 @@ module acc_ispr_bignum
       assign ispr_rdata_no_intg_mux_in[IsprKmacMsg1] = 0;
 
       assign ispr_rdata_no_intg_mux_in[IsprKmacCfg] =
-          {224'b0, kmac_cfg_intg_i};
+          {224'b0, kmac_ispr_rdata_no_intg_i};
 
       assign ispr_rdata_no_intg_mux_in[IsprKmacStatus] =
-          {224'b0, kmac_status_intg_i};
+          {224'b0, kmac_ispr_rdata_no_intg_i};
+
+      assign ispr_rdata_no_intg_mux_in[IsprKmacPartialW] =
+          {224'b0, kmac_ispr_rdata_no_intg_i};
 
       assign ispr_rdata_no_intg_mux_in[IsprKmacDigest0] = 0;
       assign ispr_rdata_no_intg_mux_in[IsprKmacDigest1] = 0;
@@ -526,15 +522,8 @@ module acc_ispr_bignum
 
   generate
     if (AccPQCEn) begin : gen_ispr_intg_mux_pqc
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacMsg0Intg]    =
-          kmac_msg_intg_i[0];
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacMsg1Intg]    =
-          kmac_msg_intg_i[1];
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacDigest0Intg] =
-          kmac_digest_intg_i[0];
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacDigest1Intg] =
-          kmac_digest_intg_i[1];
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprAccHIntg]        = ispr_acch_intg_i;
+      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacIntg] = kmac_ispr_rdata_intg_i;
+      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprAccHIntg] = ispr_acch_intg_i;
     end
   endgenerate
 
@@ -543,15 +532,13 @@ module acc_ispr_bignum
 
   generate
     if (AccPQCEn) begin : gen_ispr_intg_mux_sel_pqc
-      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprKmacMsg0Intg]     =
-          ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg0];
-      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprKmacMsg1Intg]     =
-          ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg1];
-      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprKmacDigest0Intg] =
-          ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0];
-      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprKmacDigest1Intg] =
-          ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1];
-      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprAccHIntg]        =
+      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprKmacIntg] =
+          |{ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg0],
+            ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg1],
+            ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0],
+            ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1]};
+
+      assign ispr_rdata_intg_mux_sel[gen_ispr_ids_pqc.IsprAccHIntg] =
           ispr_predec_bignum_i.ispr_rd_en[IsprAccH];
     end
   endgenerate

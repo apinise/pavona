@@ -44,11 +44,8 @@ module acc_kmac_if
   output logic kmac_msg_pending_write_o [Share],
   output logic kmac_digest_valid_o,
 
-  // TODO: TMP INTG outputs to be replaced by local mux
-  output logic [31:0]             kmac_cfg_intg_o,
-  output logic [31:0]             kmac_status_intg_o,
-  output logic [ExtWLEN-1:0]      kmac_msg_intg_o    [Share],
-  output logic [ExtDigestLen-1:0] kmac_digest_intg_o [Share],
+  output logic [31:0]        kmac_ispr_rdata_no_intg_o,
+  output logic [ExtWLEN-1:0] kmac_ispr_rdata_intg_o,
 
   output kmac_pkg::app_req_t kmac_app_req_o,
   input  kmac_pkg::app_rsp_t kmac_app_rsp_i
@@ -1330,11 +1327,55 @@ module acc_kmac_if
                              kmac_cfg_intg_err,
                              kmac_status_intg_err};
 
-  // TODO: TMP INTG outputs to be replaced by local mux
-  assign kmac_cfg_intg_o    = kmac_cfg_intg_q[31:0];
-  assign kmac_status_intg_o = kmac_status_intg_q[31:0];
-  assign kmac_msg_intg_o    = kmac_msg_intg_q;
-  assign kmac_digest_intg_o = kmac_digest_intg_q;
+  // Make a local mux based on Stage 1 assignment in acc_ispr_bignum
+  logic [31:0] kmac_ispr_rdata_no_intg_mux_in [3];
+  logic [2:0]  kmac_ispr_rdata_no_intg_mux_sel;
+
+  // Strips off the INTG bits to conform to ISPR mux
+  assign kmac_ispr_rdata_no_intg_mux_in[0] = kmac_cfg_intg_q[31:0];
+  assign kmac_ispr_rdata_no_intg_mux_in[1] = kmac_status_intg_q[31:0];
+  assign kmac_ispr_rdata_no_intg_mux_in[2] = kmac_pw_intg_q[31:0];
+
+  assign kmac_ispr_rdata_no_intg_mux_sel = {ispr_predec_bignum_i.ispr_rd_en[IsprKmacPartialW],
+                                            ispr_predec_bignum_i.ispr_rd_en[IsprKmacStatus],
+                                            ispr_predec_bignum_i.ispr_rd_en[IsprKmacCfg]};
+
+  // SEC_CM: DATA_REG_SW.SCA
+  prim_onehot_mux #(
+    .Width(32),
+    .Inputs(3)
+  ) u_kmac_ispr_rdata_no_intg_mux (
+    .clk_i,
+    .rst_ni,
+    .in_i (kmac_ispr_rdata_no_intg_mux_in),
+    .sel_i(kmac_ispr_rdata_no_intg_mux_sel),
+    .out_o(kmac_ispr_rdata_no_intg_o)
+  );
+
+  logic [ExtWLEN-1:0] kmac_ispr_rdata_intg_mux_in [4];
+  logic [3:0]         kmac_ispr_rdata_intg_mux_sel;
+
+  assign kmac_ispr_rdata_intg_mux_in[0] = kmac_msg_intg_q[0];
+  assign kmac_ispr_rdata_intg_mux_in[1] = kmac_msg_intg_q[1];
+  assign kmac_ispr_rdata_intg_mux_in[2] = kmac_digest_intg_q[0];
+  assign kmac_ispr_rdata_intg_mux_in[3] = kmac_digest_intg_q[1];
+
+  assign kmac_ispr_rdata_intg_mux_sel = {ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest1],
+                                         ispr_predec_bignum_i.ispr_rd_en[IsprKmacDigest0],
+                                         ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg1],
+                                         ispr_predec_bignum_i.ispr_rd_en[IsprKmacMsg0]};
+
+  // SEC_CM: DATA_REG_SW.SCA
+  prim_onehot_mux #(
+    .Width(ExtWLEN),
+    .Inputs(4)
+  ) u_kmac_ispr_rdata_intg_mux (
+    .clk_i,
+    .rst_ni,
+    .in_i (kmac_ispr_rdata_intg_mux_in),
+    .sel_i(kmac_ispr_rdata_intg_mux_sel),
+    .out_o(kmac_ispr_rdata_intg_o)
+  );
 
   // Tie off unused bits from pqc signals
   logic unused_pqc_bits;
