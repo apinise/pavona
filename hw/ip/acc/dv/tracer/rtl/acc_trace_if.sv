@@ -271,7 +271,7 @@ interface acc_trace_if
         assign ispr_read_data[IsprMod][i_word*32+:32]  =
             u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_write_data[IsprAcc][i_word*32+:32] =
-            u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+            u_acc_ispr_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] =
           gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_wr_en[0][i_word] ?
           gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_d[0][i_word*39+:32] :
@@ -285,7 +285,7 @@ interface acc_trace_if
         assign ispr_read_data[IsprKmacMsg1][i_word*32+:32] =
           gen_acc_kmac_if.u_acc_kmac_if.kmac_msg_intg_q[1][i_word*39+:32];
         assign ispr_write_data[IsprAccH][i_word*32+:32] =
-          u_acc_mac_bignum.gen_acch_wr_en.acch_intg_d[i_word*39+:32];
+          u_acc_ispr_bignum.gen_acch_wsr.acch_intg_d[i_word*39+:32];
       end
     end else begin : gen_ispr_data
       for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_mod_and_acc_words
@@ -295,7 +295,7 @@ interface acc_trace_if
         assign ispr_read_data[IsprMod][i_word*32+:32]  =
             u_acc_ispr_bignum.mod_intg_q[i_word*39+:32];
         assign ispr_write_data[IsprAcc][i_word*32+:32] =
-            u_acc_mac_bignum.acc_intg_d[i_word*39+:32];
+            u_acc_ispr_bignum.acc_intg_d[i_word*39+:32];
         assign ispr_write_data[IsprKmacMsg0][i_word*32+:32] = 32'b0;
         assign ispr_read_data[IsprKmacMsg0][i_word*32+:32] = 32'b0;
         assign ispr_write_data[IsprKmacMsg1][i_word*32+:32] = 32'b0;
@@ -341,11 +341,11 @@ interface acc_trace_if
       assign ispr_write_data[IsprKmacPartialW]  = {224'b0,
           gen_acc_kmac_if.u_acc_kmac_if.kmac_pw_intg_d[31:0]};
       // ACCH
-      assign ispr_write[IsprAccH]     = u_acc_mac_bignum.gen_acch_wr_en.acch_en & ~ispr_init;
+      assign ispr_write[IsprAccH]     = u_acc_ispr_bignum.gen_acch_wsr.acch_en & ~ispr_init;
       assign ispr_read[IsprAccH]      = (any_ispr_read & (ispr_addr == IsprAccH)) | mac_bignum_en;
       assign ispr_read_data[IsprAccH] =
           (any_ispr_read & (ispr_addr == IsprAccH)) ?
-              u_acc_mac_bignum.gen_acch_reg.acch_no_intg_q :
+              u_acc_ispr_bignum.gen_acch_wsr.acch_no_intg_q :
               u_acc_mac_bignum.gen_acch_blanker.acch_blanked;
     end else begin : gen_ispr_read_write_blank
       // Need to drive unused signals for verilator linting
@@ -388,13 +388,13 @@ interface acc_trace_if
   endgenerate
 
   // ACC
-  assign ispr_write[IsprAcc] = u_acc_mac_bignum.acc_en & ~ispr_init;
+  assign ispr_write[IsprAcc] = u_acc_ispr_bignum.acc_en & ~ispr_init;
 
   assign ispr_read[IsprAcc] = (any_ispr_read & (ispr_addr == IsprAcc)) | mac_bignum_en;
   // For ISPR reads look at the ACC flops directly. For other ACC reads look at the `acc_blanked`
   // signal in order to read ACC as 0 for the BN.MULQACC.Z instruction variant.
   assign ispr_read_data[IsprAcc] =
-      (any_ispr_read & (ispr_addr == IsprAcc)) ? u_acc_mac_bignum.acc_no_intg_q  :
+      (any_ispr_read & (ispr_addr == IsprAcc)) ? u_acc_ispr_bignum.acc_no_intg_q :
                                                  u_acc_mac_bignum.acc_blanked;
 
   assign ispr_write[IsprRnd] = 1'b0;

@@ -19,7 +19,7 @@
 `include "acc_intg_err_vseq.sv"
 `include "acc_ispr_bignum_mod_err_vseq.sv"
 `include "acc_controller_ispr_rdata_err_vseq.sv"
-`include "acc_mac_bignum_acc_err_vseq.sv"
+`include "acc_ispr_bignum_acc_err_vseq.sv"
 `include "acc_rf_base_intg_err_vseq.sv"
 `include "acc_rf_bignum_intg_err_vseq.sv"
 `include "acc_pc_ctrl_flow_redun_vseq.sv"

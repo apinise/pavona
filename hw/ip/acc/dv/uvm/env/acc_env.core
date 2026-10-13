@@ -57,7 +57,7 @@ filesets:
       - seq_lib/acc_intg_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_ispr_bignum_mod_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_controller_ispr_rdata_err_vseq.sv: {is_include_file: true}
-      - seq_lib/acc_mac_bignum_acc_err_vseq.sv: {is_include_file: true}
+      - seq_lib/acc_ispr_bignum_acc_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_rf_base_intg_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_rf_bignum_intg_err_vseq.sv: {is_include_file: true}
       - seq_lib/acc_pc_ctrl_flow_redun_vseq.sv: {is_include_file: true}

@@ -8,8 +8,10 @@ interface acc_ispr_bignum_if (
   input         clk_i,
   input         rst_ni,
 
-  input [acc_pkg::ExtWLEN-1:0] mod_intg_q,
-  input                        alu_mod_used_i
+  input [acc_pkg::ExtWLEN-1:0]        mod_intg_q,
+  input                               alu_mod_used_i,
+  input logic [acc_pkg::ExtWLEN-1:0]  acc_intg_q,
+  input logic                         acc_used_i
 );
 
   // Force the `mod_intg_q` register to `should_val`.  This function needs to be static because its
@@ -32,6 +34,37 @@ interface acc_ispr_bignum_if (
     while (1) begin
       @(negedge clk_i);
       if (rst_ni && alu_mod_used_i) begin
+        used_words = '1;
+        break;
+      end
+      if (max_cycles != 0 && cycle_cnt >= max_cycles) begin
+        used_words = '0;
+        break;
+      end
+      cycle_cnt++;
+    end
+  endtask
+
+  // Force the `acc_intg_q` register to `should_val`.  This function needs to be static because its
+  // argument must live as least as long as the `force` statement is in effect.
+  function static void force_acc_intg_q(input logic [acc_pkg::ExtWLEN-1:0] should_val);
+    force u_acc_ispr_bignum.acc_intg_q = should_val;
+  endfunction
+
+  // Release the forcing of the `acc_intg_q` register.
+  function automatic void release_acc_intg_q();
+    release u_acc_ispr_bignum.acc_intg_q;
+  endfunction
+
+  // Wait for the `acc_used_i` signal to be high (outside a reset) or until `max_cycles` clock cycles
+  // have passed.  When this task returns, the `used_words` output indicates which words are being
+  // used.
+  task automatic wait_for_acc_used(input int unsigned max_cycles,
+                                   output bit [acc_pkg::BaseWordsPerWLEN-1:0] used_words);
+    int unsigned cycle_cnt = 0;
+    while (1) begin
+      @(negedge clk_i);
+      if (rst_ni && acc_used_i) begin
         used_words = '1;
         break;
       end
