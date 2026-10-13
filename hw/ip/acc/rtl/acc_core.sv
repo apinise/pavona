@@ -217,7 +217,6 @@ module acc_core
   logic [WLEN-1:0]       alu_bignum_operation_result;
   logic                  alu_bignum_selection_flag;
   logic                  alu_bignum_reg_intg_violation_err;
-  logic                  alu_bignum_sec_wipe_err;
 
   mac_bignum_operation_t mac_bignum_operation;
   logic [WLEN-1:0]       mac_bignum_operation_result;
@@ -226,7 +225,15 @@ module acc_core
   logic                  mac_bignum_en;
   logic                  mac_bignum_commit;
   logic                  mac_bignum_reg_intg_violation_err;
-  logic                  mac_bignum_sec_wipe_err;
+
+  // MAC to ISPR nets
+  logic [WLEN-1:0] mac_acc_no_intg;
+  logic            mac_acc_active_wr;
+  logic [WLEN-1:0] mac_acch_no_intg;
+  logic            mac_acch_active_wr;
+  logic            mac_acc_used;
+  logic [WLEN-1:0] ispr_acc_no_intg;
+  logic [WLEN-1:0] ispr_acch_no_intg;
 
   ispr_e                       ispr_addr;
   logic [31:0]                 ispr_base_wdata;
@@ -237,15 +244,10 @@ module acc_core
   logic                        ispr_wr_commit;
   logic [ExtWLEN-1:0]          ispr_rdata_intg;
   logic                        ispr_rd_en;
-  logic [ExtWLEN-1:0]          ispr_acc_intg;
-  logic [ExtWLEN-1:0]          ispr_acc_wr_data_intg;
-  logic                        ispr_acc_wr_en;
-  logic [ExtWLEN-1:0]          ispr_acch_intg;
-  logic [ExtWLEN-1:0]          ispr_acch_wr_data_intg;
-  logic                        ispr_acch_wr_en;
   logic                        ispr_init;
   logic [WLEN-1:0]             ispr_mod_no_intg;
   logic                        ispr_mod_used;
+  logic                        ispr_bignum_sec_wipe_err;
 
   logic            rnd_req;
   logic            rnd_prefetch_req;
@@ -469,8 +471,7 @@ module acc_core
   assign sec_wipe_err = |{rf_base_wr_sec_wipe_err,
                           rf_base_sec_wipe_err,
                           rf_bignum_wr_sec_wipe_err,
-                          alu_bignum_sec_wipe_err,
-                          mac_bignum_sec_wipe_err};
+                          ispr_bignum_sec_wipe_err};
 
   // Controller: coordinate between functional units, prepare their inputs (e.g. by muxing between
   // operand sources), and post-process their outputs as needed.
@@ -908,6 +909,7 @@ module acc_core
     .operation_valid_i (alu_bignum_operation_valid),
     .operation_commit_i(alu_bignum_operation_commit),
     .selection_flag_o  (alu_bignum_selection_flag),
+    .mac_en_i          (mac_bignum_en),
 
     .alu_predec_bignum_i (alu_predec_bignum),
     .ispr_predec_bignum_i(ispr_predec_bignum),
@@ -926,10 +928,12 @@ module acc_core
     .kmac_intg_err_i         (kmac_intg_err),
     .reg_intg_violation_err_o(alu_bignum_reg_intg_violation_err),
 
+    .sec_wipe_acc_urnd_i      (sec_wipe_acc_urnd),
+    .sec_wipe_acch_urnd_i     (sec_wipe_acch_urnd),
     .sec_wipe_mod_urnd_i      (sec_wipe_mod_urnd),
     .sec_wipe_kmac_regs_urnd_i(sec_wipe_kmac_regs_urnd),
     .sec_wipe_running_i       (secure_wipe_running_o),
-    .sec_wipe_err_o           (alu_bignum_sec_wipe_err),
+    .sec_wipe_err_o           (ispr_bignum_sec_wipe_err),
 
     .rnd_data_i (rnd_data),
     .urnd_data_i(urnd_data),
@@ -942,13 +946,16 @@ module acc_core
     .alu_adder_update_flags_en_raw_i(alu_adder_update_flags_en_raw),
     .selected_flags_o               (selected_flags),
 
-    .ispr_acc_intg_i        (ispr_acc_intg),
-    .ispr_acc_wr_data_intg_o(ispr_acc_wr_data_intg),
-    .ispr_acc_wr_en_o       (ispr_acc_wr_en),
+    // Combinatorial input from the MAC
+    .acc_no_intg_i   (mac_acc_no_intg),
+    .acc_active_wr_i (mac_acc_active_wr),
+    .acch_no_intg_i  (mac_acch_no_intg),
+    .acch_active_wr_i(mac_acch_active_wr),
+    .acc_used_i      (mac_acc_used),
 
-    .ispr_acch_intg_i        (ispr_acch_intg),
-    .ispr_acch_wr_data_intg_o(ispr_acch_wr_data_intg),
-    .ispr_acch_wr_en_o       (ispr_acch_wr_en),
+    // Registered output from the ISPR
+    .acc_no_intg_o (ispr_acc_no_intg),
+    .acch_no_intg_o(ispr_acch_no_intg),
 
     .alu_mod_used_i(ispr_mod_used),
     .mod_no_intg_o (ispr_mod_no_intg),
@@ -958,9 +965,10 @@ module acc_core
     .kmac_ispr_rdata_no_intg_i(kmac_ispr_rdata_no_intg),
     .kmac_ispr_rdata_intg_i   (kmac_ispr_rdata_intg),
 
-    .alu_predec_error_i  (alu_bignum_predec_error),
-    .flags_predec_error_o(flags_predec_error),
-    .ispr_predec_error_o (ispr_predec_error)
+    .alu_predec_error_i            (alu_bignum_predec_error),
+    .flags_predec_error_o          (flags_predec_error),
+    .ispr_predec_error_o           (ispr_predec_error),
+    .operation_intg_violation_err_o(mac_bignum_reg_intg_violation_err)
   );
 
   generate
@@ -1024,27 +1032,23 @@ module acc_core
     .operation_result_o             (mac_bignum_operation_result),
     .operation_flags_o              (mac_bignum_operation_flags),
     .operation_flags_en_o           (mac_bignum_operation_flags_en),
-    .operation_intg_violation_err_o (mac_bignum_reg_intg_violation_err),
 
     .mac_predec_bignum_i(mac_predec_bignum),
     .predec_error_o     (mac_bignum_predec_error),
 
-    .urnd_data_i         (urnd_data),
-    .sec_wipe_acc_urnd_i (sec_wipe_acc_urnd),
-    .sec_wipe_acch_urnd_i(sec_wipe_acch_urnd),
-    .sec_wipe_running_i  (secure_wipe_running_o),
-    .sec_wipe_err_o      (mac_bignum_sec_wipe_err),
-
     .mac_en_i    (mac_bignum_en),
     .mac_commit_i(mac_bignum_commit),
 
-    .ispr_acch_intg_o        (ispr_acch_intg),
-    .ispr_acch_wr_data_intg_i(ispr_acch_wr_data_intg),
-    .ispr_acch_wr_en_i       (ispr_acch_wr_en),
+    // Registered accumulator inputs from the ISPR
+    .acc_no_intg_i (ispr_acc_no_intg),
+    .acch_no_intg_i(ispr_acch_no_intg),
 
-    .ispr_acc_intg_o        (ispr_acc_intg),
-    .ispr_acc_wr_data_intg_i(ispr_acc_wr_data_intg),
-    .ispr_acc_wr_en_i       (ispr_acc_wr_en)
+    // Combinatorial output from the MAC
+    .acc_no_intg_o   (mac_acc_no_intg),
+    .acc_active_wr_o (mac_acc_active_wr),
+    .acch_no_intg_o  (mac_acch_no_intg),
+    .acch_active_wr_o(mac_acch_active_wr),
+    .acc_used_o      (mac_acc_used)
   );
 
   acc_rnd #(

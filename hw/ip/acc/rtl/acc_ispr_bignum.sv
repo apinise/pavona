@@ -20,6 +20,7 @@ module acc_ispr_bignum
   input  alu_bignum_operation_t operation_i,
   input  logic                  operation_commit_i, // used for SVAs only
   input  logic                  operation_valid_i,
+  input  logic                  mac_en_i,
   output logic                  selection_flag_o,
 
   input  alu_predec_bignum_t  alu_predec_bignum_i,
@@ -39,6 +40,8 @@ module acc_ispr_bignum
   input  logic                        kmac_intg_err_i,
   output logic                        reg_intg_violation_err_o,
 
+  input  logic                        sec_wipe_acc_urnd_i,
+  input  logic                        sec_wipe_acch_urnd_i,
   input  logic                        sec_wipe_mod_urnd_i,
   input  logic                        sec_wipe_kmac_regs_urnd_i,
   input  logic                        sec_wipe_running_i,
@@ -55,13 +58,16 @@ module acc_ispr_bignum
   input  logic                        alu_adder_update_flags_en_raw_i,
   output flags_t                      selected_flags_o,
 
-  input  logic [ExtWLEN-1:0]          ispr_acc_intg_i,
-  output logic [ExtWLEN-1:0]          ispr_acc_wr_data_intg_o,
-  output logic                        ispr_acc_wr_en_o,
+  // Combinatorial input from the MAC
+  input  logic [WLEN-1:0]             acc_no_intg_i,
+  input  logic                        acc_active_wr_i,
+  input  logic [WLEN-1:0]             acch_no_intg_i,
+  input  logic                        acch_active_wr_i,
+  input  logic                        acc_used_i,
 
-  input  logic [ExtWLEN-1:0]          ispr_acch_intg_i,
-  output logic [ExtWLEN-1:0]          ispr_acch_wr_data_intg_o,
-  output logic                        ispr_acch_wr_en_o,
+  // Registered output from the ISPR
+  output logic [WLEN-1:0]             acc_no_intg_o,
+  output logic [WLEN-1:0]             acch_no_intg_o,
 
   input  logic                        alu_mod_used_i,
   output logic [WLEN-1:0]             mod_no_intg_o,
@@ -73,7 +79,8 @@ module acc_ispr_bignum
 
   input  logic alu_predec_error_i,
   output logic flags_predec_error_o,
-  output logic ispr_predec_error_o
+  output logic ispr_predec_error_o,
+  output logic operation_intg_violation_err_o
 );
 
   ///////////
@@ -376,9 +383,65 @@ module acc_ispr_bignum
   // ACC //
   /////////
 
-  assign ispr_acc_wr_en_o   =
-    ((ispr_addr_i == IsprAcc) & ispr_bignum_wr_en_i & ispr_wr_commit_i) | ispr_init_i;
+  // ECC encode and decode of accumulator register
+  logic [WLEN-1:0]                acc_no_intg_d;
+  logic [WLEN-1:0]                acc_no_intg_q;
+  logic [ExtWLEN-1:0]             acc_intg_calc;
+  logic [2*BaseWordsPerWLEN-1:0]  acc_intg_err;
+  logic [ExtWLEN-1:0]             acc_intg_d;
+  logic [ExtWLEN-1:0]             acc_intg_q;
+  logic                           acc_en;
+  logic                           ispr_acc_wr_en;
+  logic [ExtWLEN-1:0]             ispr_acc_wr_data_intg;
 
+  for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_acc_words
+    prim_secded_inv_39_32_enc i_secded_enc (
+      .data_i (acc_no_intg_d[i_word*32+:32]),
+      .data_o (acc_intg_calc[i_word*39+:39])
+    );
+    prim_secded_inv_39_32_dec i_secded_dec (
+      .data_i     (acc_intg_q[i_word*39+:39]),
+      .data_o     (/* unused because we abort on any integrity error */),
+      .syndrome_o (/* unused */),
+      .err_o      (acc_intg_err[i_word*2+:2])
+    );
+    assign acc_no_intg_q[i_word*32+:32] = acc_intg_q[i_word*39+:32];
+  end
+
+  always_comb begin
+    acc_no_intg_d = '0;
+    unique case (1'b1)
+      // Non-encoded inputs have to be encoded before writing to the register.
+      sec_wipe_acc_urnd_i: begin
+        acc_no_intg_d = urnd_data_i;
+        acc_intg_d = acc_intg_calc;
+      end
+      default: begin
+        // If performing an ACC ISPR write the next accumulator value is taken from the ISPR write
+        // data, otherwise it is drawn from the adder result. The new accumulator can be optionally
+        // shifted right by one half-word (shift_acc).
+        if (ispr_acc_wr_en) begin
+          acc_intg_d = ispr_acc_wr_data_intg;
+        end else begin
+          acc_no_intg_d = acc_no_intg_i;
+          acc_intg_d = acc_intg_calc;
+        end
+      end
+    endcase
+  end
+
+  // Only write to accumulator if the MAC is enabled or an ACC ISPR write is occurring or secure
+  // wipe of the internal state is occurring.
+  assign acc_en = acc_active_wr_i | ispr_acc_wr_en | sec_wipe_acc_urnd_i;
+
+  always_ff @(posedge clk_i) begin
+    if (acc_en) begin
+      acc_intg_q <= acc_intg_d;
+    end
+  end
+
+  assign ispr_acc_wr_en =
+    ((ispr_addr_i == IsprAcc) & ispr_bignum_wr_en_i & ispr_wr_commit_i) | ispr_init_i;
 
   logic [ExtWLEN-1:0] ispr_acc_bignum_wdata_intg_blanked;
 
@@ -388,19 +451,75 @@ module acc_ispr_bignum
     .en_i (ispr_predec_bignum_i.ispr_wr_en[IsprAcc]),
     .out_o(ispr_acc_bignum_wdata_intg_blanked)
   );
-  // If the blanker is enabled, the output will not carry the correct ECC bits.  This is not
-  // a problem because a blanked value should never be used.  If the blanked value is used
+  // If the blanker is enabled, the output will not carry the correct ECC bits. This is not
+  // a problem because a blanked value should never be used. If the blanked value is used
   // nonetheless, an integrity error arises.
 
-  assign ispr_acc_wr_data_intg_o = ispr_init_i ? EccWideZeroWord
-                                               : ispr_acc_bignum_wdata_intg_blanked;
+  assign ispr_acc_wr_data_intg = ispr_init_i ? EccWideZeroWord
+                                             : ispr_acc_bignum_wdata_intg_blanked;
+
+  assign acc_no_intg_o = acc_no_intg_q;
 
   //////////
   // ACCH //
   //////////
   generate
     if (AccPQCEn) begin : gen_acch_wsr
-      assign ispr_acch_wr_en_o =
+      // ECC encode and decode of accumulator high register
+      logic [WLEN-1:0]                acch_no_intg_d;
+      logic [WLEN-1:0]                acch_no_intg_q;
+      logic [ExtWLEN-1:0]             acch_intg_calc;
+      logic [2*BaseWordsPerWLEN-1:0]  acch_intg_err;
+      logic [ExtWLEN-1:0]             acch_intg_d;
+      logic [ExtWLEN-1:0]             acch_intg_q;
+      logic                           acch_en;
+      logic                           ispr_acch_wr_en;
+      logic [ExtWLEN-1:0]             ispr_acch_wr_data_intg;
+
+      for (genvar i_word = 0; i_word < BaseWordsPerWLEN; i_word++) begin : g_acch_words
+        prim_secded_inv_39_32_enc i_secdedh_enc (
+          .data_i (acch_no_intg_d[i_word*32+:32]),
+          .data_o (acch_intg_calc[i_word*39+:39])
+        );
+        prim_secded_inv_39_32_dec i_secdedh_dec (
+          .data_i     (acch_intg_q[i_word*39+:39]),
+          .data_o     (/* unused because we abort on any integrity error */),
+          .syndrome_o (/* unused */),
+          .err_o      (acch_intg_err[i_word*2+:2])
+        );
+        assign acch_no_intg_q[i_word*32+:32] = acch_intg_q[i_word*39+:32];
+      end
+
+      always_comb begin
+        acch_no_intg_d = '0;
+        unique case (1'b1)
+          // Non-encoded inputs have to be encoded before writing to the register.
+          sec_wipe_acch_urnd_i: begin
+            acch_no_intg_d = urnd_data_i;
+            acch_intg_d = acch_intg_calc;
+          end
+          default: begin
+            if (ispr_acch_wr_en) begin
+              acch_intg_d = ispr_acch_wr_data_intg;
+            end else begin
+              acch_no_intg_d = acch_no_intg_i;
+              acch_intg_d = acch_intg_calc;
+            end
+          end
+        endcase
+      end
+
+      // Only write to accumulator if the MAC is enabled or an ACC ISPR write is occurring or
+      // secure wipe of the internal state is occurring.
+      assign acch_en = acch_active_wr_i | ispr_acch_wr_en | sec_wipe_acch_urnd_i;
+
+      always_ff @(posedge clk_i) begin
+        if (acch_en) begin
+          acch_intg_q <= acch_intg_d;
+        end
+      end
+
+      assign ispr_acch_wr_en =
           ((ispr_addr_i == IsprAccH) & ispr_bignum_wr_en_i & ispr_wr_commit_i) | ispr_init_i;
 
       logic [ExtWLEN-1:0] ispr_acch_bignum_wdata_intg_blanked;
@@ -411,21 +530,36 @@ module acc_ispr_bignum
         .en_i (ispr_predec_bignum_i.ispr_wr_en[IsprAccH]),
         .out_o(ispr_acch_bignum_wdata_intg_blanked)
       );
-      // If the blanker is enabled, the output will not carry the correct ECC bits.  This is not
-      // a problem because a blanked value should never be used.  If the blanked value is used
+      // If the blanker is enabled, the output will not carry the correct ECC bits. This is not
+      // a problem because a blanked value should never be used. If the blanked value is used
       // nonetheless, an integrity error arises.
 
-      assign ispr_acch_wr_data_intg_o = ispr_init_i ? EccWideZeroWord
+      assign ispr_acch_wr_data_intg = ispr_init_i ? EccWideZeroWord
                                                   : ispr_acch_bignum_wdata_intg_blanked;
+
+      assign acch_no_intg_o = acch_no_intg_q;
 
       // ACCH ISPR Blanking
       `ASSERT(BlankingIsprACCH_A,
-              !(|ispr_acch_wr_en_o) |-> ispr_acch_bignum_wdata_intg_blanked == '0,
+              !(|ispr_acch_wr_en) |-> ispr_acch_bignum_wdata_intg_blanked == '0,
               clk_i, !rst_ni || ispr_predec_error_o || flags_predec_error_o ||
                                 alu_predec_error_i  || !operation_commit_i)
     end else begin : gen_acch_tieoff
-      assign ispr_acch_wr_en_o        = '0;
-      assign ispr_acch_wr_data_intg_o = '0;
+      // Tie off unused signals.
+      logic unused_acch_wsr;
+      assign unused_acch_wsr = ^{acch_no_intg_i, acch_active_wr_i, sec_wipe_acch_urnd_i};
+
+      assign acch_no_intg_o = '0;
+    end
+  endgenerate
+
+  generate
+    if (AccPQCEn) begin : gen_op_intg_err_pqc
+      // If the MAC is enabled then the ACCH integrity error should be propagated directly
+      assign operation_intg_violation_err_o = (acc_used_i & |(acc_intg_err)) |
+                                              (mac_en_i   & |(gen_acch_wsr.acch_intg_err));
+    end else begin : gen_op_intg_err
+      assign operation_intg_violation_err_o = acc_used_i & |(acc_intg_err);
     end
   endgenerate
 
@@ -517,13 +651,13 @@ module acc_ispr_bignum
 
   // Second stage
   assign ispr_rdata_intg_mux_in[IsprModIntg] = mod_intg_q;
-  assign ispr_rdata_intg_mux_in[IsprAccIntg] = ispr_acc_intg_i;
+  assign ispr_rdata_intg_mux_in[IsprAccIntg] = acc_intg_q;
   assign ispr_rdata_intg_mux_in[IsprNoIntg]  = ispr_rdata_intg_calc;
 
   generate
     if (AccPQCEn) begin : gen_ispr_intg_mux_pqc
       assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprKmacIntg] = kmac_ispr_rdata_intg_i;
-      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprAccHIntg] = ispr_acch_intg_i;
+      assign ispr_rdata_intg_mux_in[gen_ispr_ids_pqc.IsprAccHIntg] = gen_acch_wsr.acch_intg_q;
     end
   endgenerate
 
@@ -641,15 +775,18 @@ module acc_ispr_bignum
                                         (kmac_used & kmac_intg_err_i);
 
       // Detect and signal unexpected secure wipe signals.
-      assign sec_wipe_err_o = (sec_wipe_kmac_regs_urnd_i | sec_wipe_mod_urnd_i)
-                              & ~sec_wipe_running_i;
+      assign sec_wipe_err_o = (sec_wipe_kmac_regs_urnd_i |
+                               sec_wipe_mod_urnd_i       |
+                               sec_wipe_acc_urnd_i       |
+                               sec_wipe_acch_urnd_i
+                              ) & ~sec_wipe_running_i;
     end else begin : gen_reg_intg_err
       // Raise a register integrity violation error iff `mod_intg_q` is used
       // and (at least partially)invalid.
       assign reg_intg_violation_err_o = alu_mod_used_i & |(mod_intg_err);
 
       // Detect and signal unexpected secure wipe signals.
-      assign sec_wipe_err_o = sec_wipe_mod_urnd_i & ~sec_wipe_running_i;
+      assign sec_wipe_err_o = (sec_wipe_mod_urnd_i | sec_wipe_acc_urnd_i) & ~sec_wipe_running_i;
     end
   endgenerate
 
@@ -661,7 +798,7 @@ module acc_ispr_bignum
 
   // ACC ISPR Blanking
   `ASSERT(BlankingIsprACC_A,
-          !(|ispr_acc_wr_en_o) |-> ispr_acc_bignum_wdata_intg_blanked == '0,
+          !(|ispr_acc_wr_en) |-> ispr_acc_bignum_wdata_intg_blanked == '0,
           clk_i, !rst_ni || ispr_predec_error_o || flags_predec_error_o ||
                             alu_predec_error_i  || !operation_commit_i)
 
@@ -672,5 +809,13 @@ module acc_ispr_bignum
           !(|mod_wr_en) |-> ispr_mod_bignum_wdata_intg_blanked == '0,
           clk_i, !rst_ni || ispr_predec_error_o || flags_predec_error_o ||
                             alu_predec_error_i  || !operation_commit_i)
+
+  `ASSERT(NoISPRAccWrAndMacEn, ~(ispr_acc_wr_en & mac_en_i))
+
+  generate
+    if (AccPQCEn) begin : gen_acch_assert
+      `ASSERT(NoISPRAccHWrAndMacEn, ~(gen_acch_wsr.ispr_acch_wr_en & mac_en_i))
+    end
+  endgenerate
 
 endmodule

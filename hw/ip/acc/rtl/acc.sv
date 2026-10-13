@@ -1373,11 +1373,23 @@ module acc
 
   `ASSERT(SecWipeNonZeroACC_A,
           $fell(busy_secure_wipe) |->
-            u_acc_core.u_acc_ispr_bignum.ispr_acc_intg_i != EccWideZeroWord,
+            u_acc_core.u_acc_ispr_bignum.acc_intg_q != EccWideZeroWord,
           clk_i,
           !rst_ni || u_acc_core.urnd_reseed_err ||
             u_acc_core.u_acc_start_stop_control.mubi_err_d ||
             u_acc_core.u_acc_start_stop_control.state_error_d)
+
+  generate
+    if (AccPQCEn) begin : gen_acch_sec_wipe_assert
+      `ASSERT(SecWipeNonZeroACC_A,
+              $fell(busy_secure_wipe) |->
+                u_acc_core.u_acc_ispr_bignum.gen_acch_wsr.acch_intg_q != EccWideZeroWord,
+              clk_i,
+              !rst_ni || u_acc_core.urnd_reseed_err ||
+                u_acc_core.u_acc_start_stop_control.mubi_err_d ||
+                u_acc_core.u_acc_start_stop_control.state_error_d)
+    end
+  endgenerate
 
   `ASSERT(SecWipeNonZeroFlags_A,
           $fell(busy_secure_wipe) |-> (!u_acc_core.u_acc_ispr_bignum.flags_flattened),
