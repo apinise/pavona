@@ -87,6 +87,15 @@ py_binary(
 )
 
 py_binary(
+    name = "gen_acc_mem_layout_header",
+    srcs = ["gen_acc_mem_layout_header.py"],
+    deps = [
+        "//hw/ip/acc/util/shared:mem_layout",
+        requirement("mako"),
+    ],
+)
+
+py_binary(
     name = "acc_sim_test",
     srcs = ["acc_sim_test.py"],
     deps = [

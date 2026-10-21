@@ -14,16 +14,19 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "acc_mem_layout.h"
 #include "scrambled_ecc32_mem_area.h"
 #include "sv_scoped.h"
 #include "sv_utils.h"
 
 AccMemUtil::AccMemUtil(const std::string &top_scope)
-    : imem_(SVScoped::join_sv_scopes(top_scope, "u_imem"), 32768 / 4, 4 / 4),
-      dmem_(SVScoped::join_sv_scopes(top_scope, "u_dmem"), 32768 / 32, 32 / 4),
+    : imem_(SVScoped::join_sv_scopes(top_scope, "u_imem"),
+              ACC_IMEM_TOTAL_SIZE_BYTES / 4, 4 / 4),
+      dmem_(SVScoped::join_sv_scopes(top_scope, "u_dmem"),
+              ACC_DMEM_TOTAL_SIZE_BYTES / 32, 32 / 4),
       expected_end_addr_(-1) {
-  RegisterMemoryArea("imem", 0x8000, &imem_);
-  RegisterMemoryArea("dmem", 0x18000, &dmem_);
+  RegisterMemoryArea("imem", ACC_IMEM_LMA, &imem_);
+  RegisterMemoryArea("dmem", ACC_DMEM_LMA, &dmem_);
 }
 
 void AccMemUtil::LoadElf(const std::string &elf_path) {
