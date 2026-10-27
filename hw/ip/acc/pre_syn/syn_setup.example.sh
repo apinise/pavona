@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Copyright lowRISC contributors (OpenTitan project).
+# Copyright zeroRISC Inc.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -12,8 +13,9 @@ export LR_SYNTH_IP_NAME=acc
 export LR_SYNTH_TOP_MODULE=acc_core
 
 # Setup module parameters.
-export LR_SYNTH_IMEM_SIZE_BYTE=4096
-export LR_SYNTH_DMEM_SIZE_BYTE=4096
+export LR_SYNTH_IMEM_SIZE_BYTE=32768
+export LR_SYNTH_DMEM_SIZE_BYTE=32768
+export LR_SYNTH_ACC_PQC_EN=1
 
 # Setup cell library path.
 # Change the line below to set the path to an appropriate .lib file

@@ -1,4 +1,5 @@
 # Copyright lowRISC contributors (OpenTitan project).
+# Copyright zeroRISC Inc.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -20,6 +21,7 @@ yosys "read_verilog -sv $lr_synth_out_dir/generated/*.v"
 if { $lr_synth_top_module == "acc_core" } {
   yosys "chparam -set ImemSizeByte $lr_synth_imem_size_byte $lr_synth_top_module"
   yosys "chparam -set DmemSizeByte $lr_synth_dmem_size_byte $lr_synth_top_module"
+  yosys "chparam -set AccPQCEn $lr_synth_acc_pqc_en $lr_synth_top_module"
 }
 
 # Remap Xilinx Vivado "dont_touch" attributes to Yosys "keep" attributes.

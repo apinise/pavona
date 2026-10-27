@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Copyright lowRISC contributors (OpenTitan project).
+# Copyright zeroRISC Inc.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -110,6 +111,7 @@ OT_DEP_PACKAGES=(
     "$LR_SYNTH_SRC_DIR"/../edn/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../csrng/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../entropy_src/rtl/*_pkg.sv
+    "$LR_SYNTH_SRC_DIR"/../kmac/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../lc_ctrl/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../tlul/rtl/*_pkg.sv
     "$LR_SYNTH_SRC_DIR"/../prim/rtl/*_pkg.sv
@@ -143,7 +145,7 @@ sed -i 's/module prim_sparse_fsm_flop_.*/module prim_sparse_fsm_flop \(/g' \
     $LR_SYNTH_OUT_DIR/generated/prim_sparse_fsm_flop.v
 
 # Get and convert core sources.
-for file in "$LR_SYNTH_SRC_DIR"/rtl/*.sv; do
+for file in "$LR_SYNTH_SRC_DIR"/rtl/*.sv "$LR_SYNTH_SRC_DIR"/rtl/bn_vec_core/*.sv; do
     module=`basename -s .sv $file`
 
     # Skip packages

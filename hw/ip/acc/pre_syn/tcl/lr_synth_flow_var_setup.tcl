@@ -1,4 +1,5 @@
 # Copyright lowRISC contributors (OpenTitan project).
+# Copyright zeroRISC Inc.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -20,6 +21,7 @@ set_flow_bool_var flatten 1 "flatten"
 set_flow_bool_var timing_run 0 "timing run"
 set_flow_var imem_size_byte 4096 "IMEM size in bytes"
 set_flow_var dmem_size_byte 4096 "DMEM size in bytes"
+set_flow_var acc_pqc_en 1 "PQC enable/disable for ACC"
 
 source $lr_synth_config_file
 
