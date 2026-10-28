@@ -9,6 +9,14 @@
   // Import additional common sim cfg files.
   import_cfgs: ["{proj_root}/hw/ip/acc/dv/uvm/acc_base_sim_cfg.hjson"]
 
+  // KMAC Intf is not supported: remove the KMAC-only testpoints.
+  overrides: [
+    {
+      name: testplan
+      value: "{acc_dir}/data/acc_testplan.hjson:-acc_kmac_intf"
+    }
+  ]
+
   // Generic ACC smoke test
   smoke_dir: "{acc_dir}/dv/smoke"
 
